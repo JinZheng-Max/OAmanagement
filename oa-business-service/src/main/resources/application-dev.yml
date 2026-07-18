@@ -1,5 +1,2 @@
 spring:
-  cloud:
-    nacos:
-      discovery:
-        enabled: ${NACOS_ENABLED:true}
+  # Nacos 已禁用

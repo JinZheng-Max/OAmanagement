@@ -4,16 +4,14 @@ server:
 spring:
   application:
     name: oa-business-service
-  profiles:
-    active: ${SPRING_PROFILES_ACTIVE:dev}
+  autoconfigure:
+    exclude:
+      - com.alibaba.cloud.nacos.NacosConfigAutoConfiguration
+      - com.alibaba.cloud.nacos.discovery.NacosDiscoveryAutoConfiguration
   config:
-    import: optional:nacos:${spring.application.name}.yaml?group=OA_GROUP&refreshEnabled=true
-  cloud:
-    nacos:
-      discovery:
-        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
-        username: ${NACOS_USERNAME:nacos}
-        password: ${NACOS_PASSWORD:x}
+    import:
+      - optional:file:.env[.properties]
+      - optional:file:../.env[.properties]
 
 management:
   endpoints:

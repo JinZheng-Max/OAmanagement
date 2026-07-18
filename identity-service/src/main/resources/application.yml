@@ -12,7 +12,6 @@ spring:
     import:
       - optional:file:.env[.properties]
       - optional:file:../.env[.properties]
-      - optional:nacos:${spring.application.name}.yaml?group=OA_GROUP&refreshEnabled=true
   datasource:
     url: ${MYSQL_URL}
     username: ${MYSQL_USERNAME}

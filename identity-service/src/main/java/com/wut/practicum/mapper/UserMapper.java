@@ -23,6 +23,11 @@ public interface UserMapper {
     int updatePassword(@Param("id") Long id, @Param("passwordHash") String passwordHash);
 
     /**
+     * 根据员工ID查询用户（用于判断员工是否已有账号）
+     */
+    SysUser selectByEmployeeId(@Param("employeeId") Long employeeId);
+
+    /**
      * 新增用户
      */
     int insertUser(SysUser sysUser);

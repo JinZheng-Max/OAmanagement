@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wut.practicum.mapper.EmployeeMapper">
+
+    <!--
+        基础结果映射：将数据库字段名（下划线）映射为 Java 属性名（驼峰）
+        比如 employee_no → employeeNo，create_time → createTime
+    -->
+    <resultMap id="EmployeeMap" type="com.wut.practicum.entity.OaEmployee">
+        <id property="id" column="id"/>
+        <result property="employeeNo" column="employee_no"/>
+        <result property="name" column="name"/>
+        <result property="departmentId" column="department_id"/>
+        <result property="departmentName" column="department_name"/>
+        <result property="position" column="position"/>
+        <result property="phone" column="phone"/>
+        <result property="status" column="status"/>
+        <result property="hireDate" column="hire_date"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <!--
+        复用的 SQL 片段：查询员工 + 部门名称（左连接）
+        用 LEFT JOIN 是因为员工可能没有分配部门
+    -->
+    <sql id="selectWithDepartment">
+        SELECT
+            e.id,
+            e.employee_no,
+            e.name,
+            e.department_id,
+            d.name AS department_name,  <!-- 从部门表拿到的名称 -->
+            e.position,
+            e.phone,
+            e.status,
+            e.hire_date,
+            e.create_time,
+            e.update_time
+        FROM oa_employee e
+        LEFT JOIN sys_department d ON e.department_id = d.id
+    </sql>
+
+    <!--
+        分页查询员工列表
+        使用 <where> 标签可以自动处理 AND 关键字：
+        如果所有条件都不成立，就不加 WHERE；
+        如果第一个条件成立，它会自动去掉开头的 AND
+    -->
+    <select id="selectPage" resultMap="EmployeeMap">
+        <include refid="selectWithDepartment"/>
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (e.name LIKE CONCAT('%', #{keyword}, '%')
+                OR e.employee_no LIKE CONCAT('%', #{keyword}, '%')
+                OR e.phone LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="departmentId != null">
+                AND e.department_id = #{departmentId}
+            </if>
+        </where>
+        ORDER BY e.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+        <!--
+            LIMIT #{limit} OFFSET #{offset} 是分页的关键：
+            offset = (page - 1) * size
+            比如第1页每页10条：OFFSET 0 LIMIT 10
+            第2页：OFFSET 10 LIMIT 10
+        -->
+    </select>
+
+    <!-- 统计符合条件的总数 -->
+    <select id="countPage" resultType="long">
+        SELECT COUNT(*)
+        FROM oa_employee e
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (e.name LIKE CONCAT('%', #{keyword}, '%')
+                OR e.employee_no LIKE CONCAT('%', #{keyword}, '%')
+                OR e.phone LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="departmentId != null">
+                AND e.department_id = #{departmentId}
+            </if>
+        </where>
+    </select>
+
+    <!-- 查询单个员工详情 -->
+    <select id="selectById" resultMap="EmployeeMap">
+        <include refid="selectWithDepartment"/>
+        WHERE e.id = #{id}
+    </select>
+
+    <!-- 按工号查询（用于唯一性校验） -->
+    <select id="selectByEmployeeNo" resultMap="EmployeeMap">
+        <include refid="selectWithDepartment"/>
+        WHERE e.employee_no = #{employeeNo}
+    </select>
+
+    <!--
+        新增员工
+        useGeneratedKeys="true" 告诉 MyBatis 获取数据库自增的主键
+        keyProperty="id" 表示把自增ID 赋值给 employee 对象的 id 属性
+    -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO oa_employee (employee_no, name, department_id, position, phone, status, hire_date)
+        VALUES (#{employeeNo}, #{name}, #{departmentId}, #{position}, #{phone}, #{status}, #{hireDate})
+    </insert>
+
+    <!--
+        更新员工信息
+        只有不为 null 的字段才会被更新，避免覆盖已有数据
+    -->
+    <update id="update">
+        UPDATE oa_employee
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="departmentId != null">department_id = #{departmentId},</if>
+            <if test="position != null">position = #{position},</if>
+            <if test="phone != null">phone = #{phone},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="hireDate != null">hire_date = #{hireDate},</if>
+            update_time = NOW()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 根据部门ID查询员工列表 -->
+    <select id="selectByDepartmentId" resultMap="EmployeeMap">
+        <include refid="selectWithDepartment"/>
+        WHERE e.department_id = #{departmentId}
+        AND e.status = 1
+        ORDER BY e.id DESC
+    </select>
+
+</mapper>

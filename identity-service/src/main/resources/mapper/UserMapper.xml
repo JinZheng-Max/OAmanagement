@@ -68,6 +68,20 @@
         WHERE u.id = #{id}
     </select>
 
+    <select id="selectByEmployeeId" resultType="com.wut.practicum.entity.SysUser">
+        SELECT
+            id,
+            username,
+            password_hash AS passwordHash,
+            role,
+            status,
+            employee_id AS employeeId,
+            create_time AS createTime,
+            update_time AS updateTime
+        FROM sys_user
+        WHERE employee_id = #{employeeId}
+    </select>
+
     <update id="updatePassword">
         UPDATE sys_user
         SET password_hash = #{passwordHash}

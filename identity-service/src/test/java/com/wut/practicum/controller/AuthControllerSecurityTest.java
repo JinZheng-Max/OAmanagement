@@ -3,11 +3,13 @@ package com.wut.practicum.controller;
 import com.wut.practicum.common.GlobalExceptionHandler;
 import com.wut.practicum.config.SecurityConfig;
 import com.wut.practicum.filter.TraceIdFilter;
+import com.wut.practicum.mapper.EmployeeMapper;
 import com.wut.practicum.mapper.UserMapper;
 import com.wut.practicum.security.CurrentUser;
 import com.wut.practicum.security.JwtAuthenticationFilter;
 import com.wut.practicum.security.JwtService;
 import com.wut.practicum.security.SessionStore;
+import com.wut.practicum.service.EmployeeService;
 import com.wut.practicum.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +33,8 @@ class AuthControllerSecurityTest {
     @MockitoBean SessionStore sessions;
     @MockitoBean JwtService jwtService;
     @MockitoBean UserMapper userMapper;
+    @MockitoBean EmployeeMapper employeeMapper;
+    @MockitoBean EmployeeService employeeService;
 
     @Test
     void protectedEndpointRejectsAnonymousRequest() throws Exception {
