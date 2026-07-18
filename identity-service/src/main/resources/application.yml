@@ -8,6 +8,12 @@ spring:
     exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+  cloud:
+    nacos:
+      config:
+        enabled: false
+      discovery:
+        enabled: false
   config:
     import:
       - optional:file:.env[.properties]
