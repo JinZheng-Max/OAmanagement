@@ -1,0 +1,42 @@
+CREATE TABLE IF NOT EXISTS sys_department (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    parent_id BIGINT NULL,
+    code VARCHAR(50) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    leader_id BIGINT NULL,
+    status TINYINT NOT NULL DEFAULT 1,
+    sort INT NOT NULL DEFAULT 0,
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_department_code (code),
+    KEY idx_department_parent (parent_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS oa_employee (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    employee_no VARCHAR(50) NOT NULL,
+    name VARCHAR(50) NOT NULL,
+    department_id BIGINT NULL,
+    position VARCHAR(100) NULL,
+    phone VARCHAR(20) NULL,
+    status TINYINT NOT NULL DEFAULT 1,
+    hire_date DATE NULL,
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_employee_no (employee_no),
+    KEY idx_employee_department (department_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS sys_user (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL,
+    password_hash VARCHAR(200) NOT NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'EMPLOYEE',
+    status TINYINT NOT NULL DEFAULT 1,
+    employee_id BIGINT NULL,
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_user_username (username),
+    UNIQUE KEY uk_user_employee (employee_id),
+    CONSTRAINT chk_user_role CHECK (role IN ('ADMIN', 'EMPLOYEE'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

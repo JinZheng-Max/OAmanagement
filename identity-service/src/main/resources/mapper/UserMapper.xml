@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wut.practicum.mapper.UserMapper">
+
+    <resultMap id="UserWithEmployeeMap" type="com.wut.practicum.entity.SysUser">
+        <id property="id" column="u_id"/>
+        <result property="username" column="u_username"/>
+        <result property="passwordHash" column="u_password_hash"/>
+        <result property="role" column="u_role"/>
+        <result property="status" column="u_status"/>
+        <result property="employeeId" column="u_employee_id"/>
+        <result property="createTime" column="u_create_time"/>
+        <result property="updateTime" column="u_update_time"/>
+        <association property="employee" javaType="com.wut.practicum.entity.OaEmployee">
+            <id property="id" column="e_id"/>
+            <result property="employeeNo" column="e_employee_no"/>
+            <result property="name" column="e_name"/>
+            <result property="departmentId" column="e_department_id"/>
+            <result property="departmentName" column="d_name"/>
+            <result property="position" column="e_position"/>
+            <result property="phone" column="e_phone"/>
+            <result property="status" column="e_status"/>
+            <result property="hireDate" column="e_hire_date"/>
+            <result property="createTime" column="e_create_time"/>
+            <result property="updateTime" column="e_update_time"/>
+        </association>
+    </resultMap>
+
+    <select id="selectByUsername" resultType="com.wut.practicum.entity.SysUser">
+        SELECT
+            id,
+            username,
+            password_hash AS passwordHash,
+            role,
+            status,
+            employee_id AS employeeId,
+            create_time AS createTime,
+            update_time AS updateTime
+        FROM sys_user
+        WHERE username = #{username}
+    </select>
+
+    <select id="selectUserWithEmployeeById" resultMap="UserWithEmployeeMap">
+        SELECT
+            u.id AS u_id,
+            u.username AS u_username,
+            u.password_hash AS u_password_hash,
+            u.role AS u_role,
+            u.status AS u_status,
+            u.employee_id AS u_employee_id,
+            u.create_time AS u_create_time,
+            u.update_time AS u_update_time,
+            e.id AS e_id,
+            e.employee_no AS e_employee_no,
+            e.name AS e_name,
+            e.department_id AS e_department_id,
+            e.position AS e_position,
+            e.phone AS e_phone,
+            e.status AS e_status,
+            e.hire_date AS e_hire_date,
+            e.create_time AS e_create_time,
+            e.update_time AS e_update_time,
+            d.name AS d_name
+        FROM sys_user u
+        LEFT JOIN oa_employee e ON u.employee_id = e.id
+        LEFT JOIN sys_department d ON e.department_id = d.id
+        WHERE u.id = #{id}
+    </select>
+
+    <update id="updatePassword">
+        UPDATE sys_user
+        SET password_hash = #{passwordHash}
+        WHERE id = #{id}
+    </update>
+
+    <insert id="insertUser" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sys_user (username, password_hash, role, status, employee_id)
+        VALUES (#{username}, #{passwordHash}, #{role}, #{status}, #{employeeId})
+    </insert>
+
+</mapper>

@@ -1,0 +1,23 @@
+name: module-zero-gate
+on: [push, pull_request]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21', cache: maven }
+      - run: chmod +x mvnw && ./mvnw -B test
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: npm, cache-dependency-path: oa-web/package-lock.json }
+      - working-directory: oa-web
+        run: npm ci
+      - working-directory: oa-web
+        run: npm test
+      - working-directory: oa-web
+        run: npm run build
+      - working-directory: oa-web
+        run: npx playwright install --with-deps chromium
+      - working-directory: oa-web
+        run: npm run test:e2e

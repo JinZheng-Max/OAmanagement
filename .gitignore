@@ -1,0 +1,10 @@
+**/target/
+oa-web/node_modules/
+oa-web/dist/
+oa-web/coverage/
+oa-web/test-results/
+oa-web/playwright-report/
+.env
+*.log
+.idea/
+.vscode/
