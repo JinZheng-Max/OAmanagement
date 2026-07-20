@@ -18,11 +18,9 @@ const router = createRouter({
           component: () => import('../views/dashboard/DashboardView.vue'),
         },
         /** 个人信息 */
-        {
-          path: 'profile',
-          name: 'profile',
-          component: () => import('../views/profile/ProfileView.vue'),
-        },
+        { path: 'profile', name: 'profile', component: () => import('../views/profile/ProfileView.vue') },
+        /** 我的部门 */
+        { path: 'my-department', name: 'myDepartment', component: () => import('../views/my-dept/MyDepartmentView.vue') },
         /** 部门管理（仅管理员） */
         {
           path: 'departments',

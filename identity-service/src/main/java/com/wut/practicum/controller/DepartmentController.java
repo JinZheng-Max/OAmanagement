@@ -2,9 +2,11 @@ package com.wut.practicum.controller;
 
 import com.wut.practicum.common.ApiResult;
 import com.wut.practicum.dto.*;
+import com.wut.practicum.security.CurrentUser;
 import com.wut.practicum.service.DepartmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,6 +25,18 @@ public class DepartmentController {
             @RequestParam(required = false) String keyword) {
         PageQuery query = new PageQuery(page, size);
         return ApiResult.success(departmentService.page(query, keyword));
+    }
+
+    /**
+     * 获取当前员工所属部门详情（普通员工使用）
+     */
+    @GetMapping("/my")
+    public ApiResult<MyDepartmentResponse> getMyDepartment(@AuthenticationPrincipal CurrentUser user) {
+        Long employeeId = user.employeeId();
+        if (employeeId == null) {
+            return ApiResult.error(400, "当前账号未关联员工信息");
+        }
+        return ApiResult.success(departmentService.getMyDepartment(employeeId));
     }
 
     @GetMapping("/{id}")

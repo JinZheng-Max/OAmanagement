@@ -1,4 +1,5 @@
 import { http, ApiResult } from './http'
+import type { EmployeeInfo } from './employee'
 
 export interface DepartmentInfo {
   id: number
@@ -63,5 +64,20 @@ export async function updateDepartmentStatus(id: number, status: number): Promis
 
 export async function listActiveDepartments(): Promise<DepartmentInfo[]> {
   const res = await http.get<ApiResult<DepartmentInfo[]>>('/departments/active')
+  return res.data.data
+}
+
+/** 我的部门详情响应 */
+export interface MyDepartmentResponse {
+  department: DepartmentInfo
+  employees: EmployeeInfo[]
+  totalCount: number
+  positionCounts: Record<string, number>
+  leader: EmployeeInfo | null
+}
+
+/** 获取当前员工所属部门详情 */
+export async function getMyDepartment(): Promise<MyDepartmentResponse> {
+  const res = await http.get<ApiResult<MyDepartmentResponse>>('/departments/my')
   return res.data.data
 }

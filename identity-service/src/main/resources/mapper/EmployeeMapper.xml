@@ -67,7 +67,7 @@
                 AND e.department_id = #{departmentId}
             </if>
         </where>
-        ORDER BY e.id DESC
+        ORDER BY e.employee_no ASC
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
@@ -136,7 +136,7 @@
         <include refid="selectWithDepartment"/>
         WHERE e.department_id = #{departmentId}
         AND e.status = 1
-        ORDER BY e.id DESC
+        ORDER BY e.employee_no ASC
     </select>
 
 </mapper>

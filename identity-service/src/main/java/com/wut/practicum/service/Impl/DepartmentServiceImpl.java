@@ -2,8 +2,10 @@ package com.wut.practicum.service.Impl;
 
 import com.wut.practicum.common.BusinessException;
 import com.wut.practicum.dto.*;
+import com.wut.practicum.entity.OaEmployee;
 import com.wut.practicum.entity.SysDepartment;
 import com.wut.practicum.mapper.DepartmentMapper;
+import com.wut.practicum.mapper.EmployeeMapper;
 import com.wut.practicum.service.DepartmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,7 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -20,6 +22,50 @@ import java.util.stream.Collectors;
 public class DepartmentServiceImpl implements DepartmentService {
 
     private final DepartmentMapper departmentMapper;
+    private final EmployeeMapper employeeMapper;
+
+    @Override
+    public MyDepartmentResponse getMyDepartment(Long employeeId) {
+        // 1. 查询当前员工信息（获取 departmentId）
+        OaEmployee emp = employeeMapper.selectById(employeeId);
+        if (emp == null || emp.getDepartmentId() == null) {
+            throw new BusinessException(4001, HttpStatus.NOT_FOUND, "您尚未分配部门");
+        }
+
+        // 2. 查询部门信息
+        SysDepartment dept = departmentMapper.selectById(emp.getDepartmentId());
+        if (dept == null) {
+            throw new BusinessException(3001, HttpStatus.NOT_FOUND, "部门不存在");
+        }
+
+        // 3. 查询该部门所有员工
+        List<OaEmployee> emps = employeeMapper.selectByDepartmentId(emp.getDepartmentId());
+        List<EmployeeResponse> empResponses = emps.stream()
+                .map(EmployeeResponse::from).collect(Collectors.toList());
+
+        // 4. 统计各岗位人数
+        Map<String, Integer> positionCounts = new LinkedHashMap<>();
+        for (OaEmployee e : emps) {
+            String pos = (e.getPosition() != null && !e.getPosition().isBlank()) ? e.getPosition() : "未设职位";
+            positionCounts.merge(pos, 1, Integer::sum);
+        }
+
+        // 5. 查找部门负责人信息
+        EmployeeResponse leader = null;
+        if (dept.getLeaderId() != null) {
+            OaEmployee leaderEmp = employeeMapper.selectById(dept.getLeaderId());
+            if (leaderEmp != null) {
+                leader = EmployeeResponse.from(leaderEmp);
+            }
+        }
+
+        return new MyDepartmentResponse(
+                DepartmentResponse.from(dept),
+                empResponses,
+                emps.size(),
+                positionCounts,
+                leader);
+    }
 
     @Override
     public PageResult<DepartmentResponse> page(PageQuery query, String keyword) {
