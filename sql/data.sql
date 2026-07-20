@@ -58,6 +58,8 @@ CREATE TABLE IF NOT EXISTS oa_attendance (
                                              work_date       VARCHAR(10)  NOT NULL COMMENT '工作日期(yyyy-MM-dd)',
     check_in        DATETIME     NULL COMMENT '签到时间',
     check_out       DATETIME     NULL COMMENT '签退时间',
+    check_in_ip     VARCHAR(45)  NULL COMMENT '签到时客户端IP（用于内网校验）',
+    check_out_ip    VARCHAR(45)  NULL COMMENT '签退时客户端IP（用于内网校验）',
     status          VARCHAR(20)  NOT NULL DEFAULT 'UNCHECKED' COMMENT '状态: UNCHECKED/CHECKED_IN/CHECKED_OUT',
     create_time     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     update_time     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -80,7 +82,19 @@ CREATE TABLE IF NOT EXISTS oa_leave (
     KEY idx_create_time (create_time)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='请假申请';
 
--- ===== 6. 审批记录表 =====
+-- ===== 6. 请假附件表（后续接入阿里云OSS）=====
+CREATE TABLE IF NOT EXISTS oa_leave_attachment (
+    id              BIGINT       AUTO_INCREMENT PRIMARY KEY,
+    leave_id        BIGINT       NULL     COMMENT '关联的请假申请ID',
+    file_name       VARCHAR(255) NOT NULL COMMENT '原始文件名（如: 医院证明.jpg）',
+    file_url        VARCHAR(500) NOT NULL COMMENT '文件存储路径/URL（后续改为阿里云OSS地址）',
+    file_size       BIGINT       NULL     COMMENT '文件大小（字节）',
+    mime_type       VARCHAR(50)  NULL     COMMENT '文件类型（如: image/jpeg）',
+    create_time     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_leave_id (leave_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='请假附件';
+
+-- ===== 7. 审批记录表 =====
 CREATE TABLE IF NOT EXISTS oa_leave_audit (
                                               id              BIGINT AUTO_INCREMENT PRIMARY KEY,
                                               leave_id        BIGINT       NOT NULL COMMENT '请假申请ID',
