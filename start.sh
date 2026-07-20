@@ -24,11 +24,11 @@ fi
 # 2. 启动 identity-service
 echo "[2/4] 启动 identity-service..."
 cd "$PROJECT_DIR"
-bash mvnw spring-boot:run -pl identity-service -q &
+bash mvnw spring-boot:run -pl identity-service -q -Dmaven.test.skip=true &
 
-# 等待身份服务就绪
-echo "      等待启动..."
-sleep 30
+# 等待身份服务就绪（首次可能依赖下载较慢）
+echo "      等待启动（约 40 秒）..."
+sleep 40
 
 # 3. 启动 oa-gateway
 echo "[3/4] 启动 oa-gateway..."

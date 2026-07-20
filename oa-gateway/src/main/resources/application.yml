@@ -14,17 +14,6 @@ spring:
         enabled: false
       discovery:
         enabled: false
-  config:
-    import:
-      - optional:file:.env[.properties]
-      - optional:file:../.env[.properties]
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
-      timeout: 2s
-  cloud:
     gateway:
       server:
         webflux:
@@ -52,6 +41,16 @@ spring:
               uri: http://localhost:8852
               predicates:
                 - Path=/api/search/**,/api/ai/**
+  config:
+    import:
+      - optional:file:.env[.properties]
+      - optional:file:../.env[.properties]
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2s
 
 oa:
   security:
