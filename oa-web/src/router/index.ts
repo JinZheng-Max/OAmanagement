@@ -17,7 +17,13 @@ const router = createRouter({
           name: 'dashboard',
           component: () => import('../views/dashboard/DashboardView.vue'),
         },
-        /** 员工管理 */
+        /** 个人信息 */
+        {
+          path: 'profile',
+          name: 'profile',
+          component: () => import('../views/profile/ProfileView.vue'),
+        },
+        /** 员工管理（仅管理员） */
         {
           path: 'employees',
           name: 'employees',
@@ -38,5 +44,9 @@ router.beforeEach((to) => {
   const authenticated = Boolean(localStorage.getItem('oa_token'))
   if (!to.meta.public && !authenticated) return { name: 'login', query: { redirect: to.fullPath } }
   if (to.name === 'login' && authenticated) return { name: 'dashboard' }
+
+  // 员工管理页面仅管理员可访问
+  const isAdmin = JSON.parse(localStorage.getItem('oa_user') ?? 'null')?.role === 'ADMIN'
+  if (to.name === 'employees' && !isAdmin) return { name: 'dashboard' }
 })
 export default router

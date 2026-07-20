@@ -50,22 +50,32 @@ public class AttendanceServiceTest {
 
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
-
     private AttendanceServiceImpl attendanceService;
-
     @BeforeEach
     void setUp() {
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        lenient().when(ipValidator.isValid(anyString())).thenReturn(true);
         attendanceService = new AttendanceServiceImpl(attendanceMapper, employeeClient, ipValidator, redisTemplate, objectMapper);
+        org.springframework.test.util.ReflectionTestUtils.setField(attendanceService, "checkInStartStr", "00:00");
+        org.springframework.test.util.ReflectionTestUtils.setField(attendanceService, "checkInEndStr", "23:59");
+        org.springframework.test.util.ReflectionTestUtils.setField(attendanceService, "checkOutStartStr", "00:00");
+        org.springframework.test.util.ReflectionTestUtils.setField(attendanceService, "checkOutEndStr", "23:59");
     }
 
     @Test
     void testCheckIn_Success() {
         EmployeeResponse employee = new EmployeeResponse(1L, "EMP001", "张三", 10L, "技术部", "工程师", "13800000000", 1, LocalDate.now(), null, null);
+        OaAttendance existing = new OaAttendance();
+        existing.setId(100L);
+        existing.setEmployeeId(1L);
+        existing.setStatus("UNCHECKED");
+        existing.setWorkDate(LocalDate.now().toString());
+        existing.setEmployeeName("张三");
+
         when(employeeClient.getById(1L)).thenReturn(ApiResult.success(employee));
         when(ipValidator.isValid("192.168.1.100")).thenReturn(true);
         when(valueOperations.setIfAbsent(anyString(), anyString(), any())).thenReturn(true);
-        when(attendanceMapper.selectByEmployeeAndDate(eq(1L), anyString())).thenReturn(null);
+        when(attendanceMapper.selectByEmployeeAndDate(eq(1L), anyString())).thenReturn(existing);
 
         AttendanceResponse response = attendanceService.checkIn(1L, "192.168.1.100");
 
@@ -73,7 +83,7 @@ public class AttendanceServiceTest {
         assertEquals("CHECKED_IN", response.status());
         assertEquals("192.168.1.100", response.checkInIp());
         assertEquals("张三", response.employeeName());
-        verify(attendanceMapper, times(1)).insert(any());
+        verify(attendanceMapper, times(1)).update(any());
     }
 
     @Test

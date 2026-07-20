@@ -13,8 +13,13 @@ public interface EmployeeService {
 
     /**
      * 分页查询员工列表
+     *
+     * @param name       按姓名模糊搜索（可选）
+     * @param employeeNo 按工号模糊搜索（可选）
+     * @param phone      按手机号模糊搜索（可选）
      */
-    PageResult<EmployeeResponse> page(PageQuery query, Long departmentId, String keyword);
+    PageResult<EmployeeResponse> page(PageQuery query, Long departmentId,
+                                      String name, String employeeNo, String phone);
 
     /**
      * 查询员工详情
@@ -47,4 +52,14 @@ public interface EmployeeService {
      * @return 新的临时密码
      */
     String resetPassword(Long userId);
+
+    /**
+     * 员工自助修改个人信息
+     * 仅允许修改姓名和手机号
+     *
+     * @param employeeId 员工ID
+     * @param request    要修改的信息
+     * @return 更新后的员工信息
+     */
+    EmployeeResponse updateProfile(Long employeeId, EmployeeProfileUpdateRequest request);
 }

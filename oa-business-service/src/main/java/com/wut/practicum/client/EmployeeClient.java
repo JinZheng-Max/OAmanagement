@@ -9,6 +9,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 @FeignClient(name = "identity-service", configuration = FeignConfig.class)
 public interface EmployeeClient {
-    @GetMapping("/api/employees/{id}")
+    @GetMapping("/internal/employees/{id}")
     ApiResult<EmployeeResponse> getById(@PathVariable("id") Long id);
 }

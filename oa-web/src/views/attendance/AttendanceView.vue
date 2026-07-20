@@ -4,6 +4,9 @@ import { useAuthStore } from '../../stores/auth'
 import {
   getPersonalRecords,
   getAdminRecords,
+  saveOrUpdateAdminRecord,
+  updateAdminRecord,
+  publishDailyAttendance,
   type AttendanceRecord,
   type QueryParams
 } from '../../api/attendance'
@@ -137,7 +140,6 @@ onMounted(() => {
     fetchAdmin()
   }
 })
-
 // Watch tab switches
 watch(activeTab, (tab) => {
   if (tab === 'personal') {
@@ -146,6 +148,112 @@ watch(activeTab, (tab) => {
     fetchAdmin()
   }
 })
+
+// Dialog State
+const adminDialogVisible = ref(false)
+const isEdit = ref(false)
+const submitLoading = ref(false)
+const adminFormRef = ref<any>(null)
+interface AdminForm {
+  id?: number
+  employeeId?: number
+  workDate: string
+  status: 'CHECKED_IN' | 'CHECKED_OUT' | 'UNCHECKED' | 'LEAVE_EARLY'
+  checkIn: string | null
+  checkInIp: string | null
+  checkOut: string | null
+  checkOutIp: string | null
+}
+
+const adminForm = ref<AdminForm>({
+  employeeId: undefined,
+  workDate: '',
+  status: 'UNCHECKED',
+  checkIn: null,
+  checkInIp: null,
+  checkOut: null,
+  checkOutIp: null
+})
+
+const adminRules = {
+  employeeId: [{ required: true, message: '请输入员工ID', trigger: 'blur' }],
+  workDate: [{ required: true, message: '请选择日期', trigger: 'change' }],
+  status: [{ required: true, message: '请选择状态', trigger: 'change' }]
+}
+
+function openAddDialog() {
+  isEdit.value = false
+  adminForm.value = {
+    employeeId: undefined,
+    workDate: getTodayStr(),
+    status: 'UNCHECKED',
+    checkIn: null,
+    checkInIp: null,
+    checkOut: null,
+    checkOutIp: null
+  }
+  adminDialogVisible.value = true
+}
+
+function openEditDialog(row: AttendanceRecord) {
+  isEdit.value = true
+  adminForm.value = {
+    id: row.id,
+    employeeId: row.employeeId,
+    workDate: row.workDate,
+    status: row.status,
+    checkIn: row.checkIn,
+    checkInIp: row.checkInIp,
+    checkOut: row.checkOut,
+    checkOutIp: row.checkOutIp
+  }
+  adminDialogVisible.value = true
+}
+
+function closeAdminDialog() {
+  if (adminFormRef.value) {
+    adminFormRef.value.resetFields()
+  }
+}
+
+async function submitAdminForm() {
+  if (!adminFormRef.value) return
+  await adminFormRef.value.validate(async (valid: boolean) => {
+    if (!valid) return
+    submitLoading.value = true
+    try {
+      if (isEdit.value && adminForm.value.id) {
+        await updateAdminRecord(adminForm.value.id, adminForm.value)
+        ElMessage.success('修改考勤记录成功')
+      } else {
+        await saveOrUpdateAdminRecord(adminForm.value)
+        ElMessage.success('新增考勤补录成功')
+      }
+      adminDialogVisible.value = false
+      fetchAdmin()
+    } catch (error: any) {
+      const apiResult = error.response?.data
+      ElMessage.error(apiResult?.message || '保存考勤记录失败')
+    } finally {
+      submitLoading.value = false
+    }
+  })
+}
+
+const publishLoading = ref(false)
+async function triggerPublish() {
+  publishLoading.value = true
+  try {
+    const msg = await publishDailyAttendance()
+    ElMessage.success(msg || '初始化今日考勤成功')
+    fetchAdmin()
+  } catch (error: any) {
+    const apiResult = error.response?.data
+    ElMessage.error(apiResult?.message || '初始化今日考勤失败')
+  } finally {
+    publishLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -230,10 +338,12 @@ watch(activeTab, (tab) => {
               <el-table-column prop="status" label="状态" width="120" align="center">
                 <template #default="scope">
                   <el-tag v-if="scope.row.status === 'CHECKED_OUT'" type="primary" effect="dark">已签退</el-tag>
+                  <el-tag v-else-if="scope.row.status === 'LEAVE_EARLY'" type="warning" effect="dark">早退</el-tag>
                   <el-tag v-else-if="scope.row.status === 'CHECKED_IN'" type="success" effect="dark">已签到</el-tag>
                   <el-tag v-else type="danger" effect="dark">未签到</el-tag>
                 </template>
               </el-table-column>
+
             </el-table>
 
             <!-- Pagination -->
@@ -312,6 +422,9 @@ watch(activeTab, (tab) => {
                 <el-button type="primary" @click="handleAdminSearch" :loading="adminLoading">筛选</el-button>
                 <el-button @click="resetAdminFilters">重置</el-button>
               </el-form-item>
+              <el-form-item style="margin-left: auto; margin-right: 0;">
+                <el-button type="success" @click="openAddDialog">新增补录</el-button>
+                <el-button type="warning" @click="triggerPublish" :loading="publishLoading">初始化今日考勤</el-button>              </el-form-item>
             </el-form>
           </div>
 
@@ -340,12 +453,17 @@ watch(activeTab, (tab) => {
               <el-table-column prop="status" label="状态" width="110" align="center">
                 <template #default="scope">
                   <el-tag v-if="scope.row.status === 'CHECKED_OUT'" type="primary" effect="dark">已签退</el-tag>
+                  <el-tag v-else-if="scope.row.status === 'LEAVE_EARLY'" type="warning" effect="dark">早退</el-tag>
                   <el-tag v-else-if="scope.row.status === 'CHECKED_IN'" type="success" effect="dark">已签到</el-tag>
                   <el-tag v-else type="danger" effect="dark">未签到</el-tag>
                 </template>
               </el-table-column>
+              <el-table-column label="操作" width="100" align="center">
+                <template #default="scope">
+                  <el-button type="primary" size="small" @click="openEditDialog(scope.row)">编辑</el-button>
+                </template>
+              </el-table-column>
             </el-table>
-
             <!-- Pagination -->
             <div class="pagination-container">
               <el-pagination
@@ -362,6 +480,68 @@ watch(activeTab, (tab) => {
         </div>
       </el-tab-pane>
     </el-tabs>
+
+    <!-- Edit/Add Dialog -->
+    <el-dialog
+      v-model="adminDialogVisible"
+      :title="isEdit ? '修改考勤记录' : '新增补录考勤'"
+      width="500px"
+      @close="closeAdminDialog"
+    >
+      <el-form :model="adminForm" :rules="adminRules" ref="adminFormRef" label-width="100px" class="dialog-form">
+        <el-form-item label="员工ID" prop="employeeId">
+          <el-input-number v-model="adminForm.employeeId" :min="1" :disabled="isEdit" placeholder="请输入员工ID" style="width: 100%;" />
+        </el-form-item>
+        <el-form-item label="工作日期" prop="workDate">
+          <el-date-picker
+            v-model="adminForm.workDate"
+            type="date"
+            placeholder="选择日期"
+            value-format="YYYY-MM-DD"
+            :disabled="isEdit"
+            style="width: 100%;"
+          />
+        </el-form-item>
+        <el-form-item label="考勤状态" prop="status">
+          <el-select v-model="adminForm.status" placeholder="请选择状态" style="width: 100%;">
+            <el-option label="未签到" value="UNCHECKED" />
+            <el-option label="已签到" value="CHECKED_IN" />
+            <el-option label="已签退" value="CHECKED_OUT" />
+            <el-option label="早退" value="LEAVE_EARLY" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="签到时间" prop="checkIn">
+          <el-date-picker
+            v-model="adminForm.checkIn"
+            type="datetime"
+            placeholder="选择签到时间"
+            value-format="YYYY-MM-DDTHH:mm:ss"
+            style="width: 100%;"
+          />
+        </el-form-item>
+        <el-form-item label="签到IP" prop="checkInIp">
+          <el-input v-model="adminForm.checkInIp" placeholder="例如: 192.168.1.100" />
+        </el-form-item>
+        <el-form-item label="签退时间" prop="checkOut">
+          <el-date-picker
+            v-model="adminForm.checkOut"
+            type="datetime"
+            placeholder="选择签退时间"
+            value-format="YYYY-MM-DDTHH:mm:ss"
+            style="width: 100%;"
+          />
+        </el-form-item>
+        <el-form-item label="签退IP" prop="checkOutIp">
+          <el-input v-model="adminForm.checkOutIp" placeholder="例如: 192.168.1.100" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="adminDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitAdminForm" :loading="submitLoading">提交</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 

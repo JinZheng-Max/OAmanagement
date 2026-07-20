@@ -46,8 +46,14 @@ function handleMenuSelect(index: string) {
           <span>工作台</span>
         </el-menu-item>
 
-        <!-- 组织管理分组 -->
-        <el-menu-item index="/employees">
+        <!-- 个人信息（所有登录用户可见） -->
+        <el-menu-item index="/profile">
+          <el-icon><User /></el-icon>
+          <span>个人信息</span>
+        </el-menu-item>
+
+        <!-- 员工管理（仅管理员可见） -->
+        <el-menu-item v-if="auth.isAdmin" index="/employees">
           <el-icon><span>👥</span></el-icon>
           <span>员工管理</span>
         </el-menu-item>

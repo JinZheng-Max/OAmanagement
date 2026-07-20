@@ -1,5 +1,4 @@
 import { http, ApiResult } from './http'
-
 export interface AttendanceRecord {
   id: number
   employeeId: number
@@ -9,11 +8,10 @@ export interface AttendanceRecord {
   checkOut: string | null
   checkInIp: string | null
   checkOutIp: string | null
-  status: 'CHECKED_IN' | 'CHECKED_OUT' | 'UNCHECKED'
+  status: 'CHECKED_IN' | 'CHECKED_OUT' | 'UNCHECKED' | 'LEAVE_EARLY'
   createTime: string
   updateTime: string
 }
-
 export interface AttendancePageResult {
   records: AttendanceRecord[]
   total: number
@@ -58,5 +56,23 @@ export async function getPersonalRecords(params: QueryParams): Promise<Attendanc
 /** 查询管理员考勤记录板 */
 export async function getAdminRecords(params: QueryParams): Promise<AttendancePageResult> {
   const res = await http.get<ApiResult<AttendancePageResult>>('/attendance/admin/records', { params })
+  return res.data.data
+}
+
+/** 管理员补录/新增考勤记录 */
+export async function saveOrUpdateAdminRecord(record: Partial<AttendanceRecord>): Promise<AttendanceRecord> {
+  const res = await http.post<ApiResult<AttendanceRecord>>('/attendance/admin/records', record)
+  return res.data.data
+}
+
+/** 管理员修改考勤记录 */
+export async function updateAdminRecord(id: number, record: Partial<AttendanceRecord>): Promise<AttendanceRecord> {
+  const res = await http.put<ApiResult<AttendanceRecord>>(`/attendance/admin/records/${id}`, record)
+  return res.data.data
+}
+
+/** 管理员手动触发发布当日考勤 */
+export async function publishDailyAttendance(): Promise<string> {
+  const res = await http.post<ApiResult<string>>('/attendance/admin/publish')
   return res.data.data
 }

@@ -41,9 +41,10 @@ public class EmployeeServiceImpl implements EmployeeService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
     @Override
-    public PageResult<EmployeeResponse> page(PageQuery query, Long departmentId, String keyword) {
+    public PageResult<EmployeeResponse> page(PageQuery query, Long departmentId,
+                                             String name, String employeeNo, String phone) {
         // 1. 查询总数
-        long total = employeeMapper.countPage(keyword, departmentId);
+        long total = employeeMapper.countPage(name, employeeNo, phone, departmentId);
 
         // 2. 如果总数=0，直接返回空列表，不用查数据库
         if (total == 0) {
@@ -51,7 +52,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
 
         // 3. 查询当前页数据
-        List<OaEmployee> list = employeeMapper.selectPage(keyword, departmentId, query.offset(), query.size());
+        List<OaEmployee> list = employeeMapper.selectPage(name, employeeNo, phone, departmentId, query.offset(), query.size());
 
         // 4. 将实体列表转换为 DTO 列表
         // stream() 是 Java 8 的流式操作，map() 做转换，collect() 收集为 List
@@ -89,9 +90,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         emp.setPosition(request.position());
         emp.setPhone(request.phone());
 
-        // 解析日期：请求中传来的是 String "2026-07-01"，转为 LocalDate 类型
+        // 入职日期：如果没填则默认为当天
         if (request.hireDate() != null && !request.hireDate().isBlank()) {
             emp.setHireDate(LocalDate.parse(request.hireDate()));
+        } else {
+            emp.setHireDate(LocalDate.now());
         }
 
         emp.setStatus(1); // 默认为在职
@@ -196,6 +199,27 @@ public class EmployeeServiceImpl implements EmployeeService {
         log.info("重置用户密码: userId={}", userId);
 
         return newPassword;
+    }
+
+    @Override
+    @Transactional
+    public EmployeeResponse updateProfile(Long employeeId, EmployeeProfileUpdateRequest request) {
+        OaEmployee emp = employeeMapper.selectById(employeeId);
+        if (emp == null) {
+            throw new BusinessException(2001, HttpStatus.NOT_FOUND, "员工不存在");
+        }
+
+        // 仅允许修改姓名和手机号
+        if (request.name() != null && !request.name().isBlank()) {
+            emp.setName(request.name());
+        }
+        if (request.phone() != null && !request.phone().isBlank()) {
+            emp.setPhone(request.phone());
+        }
+
+        employeeMapper.update(emp);
+        log.info("员工自助更新信息: employeeId={}", employeeId);
+        return EmployeeResponse.from(employeeMapper.selectById(employeeId));
     }
 
     /**

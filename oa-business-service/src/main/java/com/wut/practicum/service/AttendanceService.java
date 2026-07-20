@@ -12,4 +12,10 @@ public interface AttendanceService {
     AttendancePageResult queryPersonalRecords(Long employeeId, String startDate, String endDate, PageQuery query, Long requestEmployeeId);
     
     AttendancePageResult queryAdminRecords(Long employeeId, Long departmentId, String startDate, String endDate, String status, PageQuery query);
+
+    int publishDailyAttendance();
+
+    AttendanceResponse saveOrUpdateAdminRecord(com.wut.practicum.entity.OaAttendance attendance);
+
+    AttendanceResponse updateAdminRecord(Long id, com.wut.practicum.entity.OaAttendance attendance);
 }

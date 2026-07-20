@@ -2,9 +2,11 @@ package com.wut.practicum.controller;
 
 import com.wut.practicum.common.ApiResult;
 import com.wut.practicum.dto.*;
+import com.wut.practicum.security.CurrentUser;
 import com.wut.practicum.service.EmployeeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -19,9 +21,11 @@ public class EmployeeController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) Long departmentId,
-            @RequestParam(required = false) String keyword) {
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String employeeNo,
+            @RequestParam(required = false) String phone) {
         PageQuery query = new PageQuery(page, size);
-        PageResult<EmployeeResponse> result = employeeService.page(query, departmentId, keyword);
+        PageResult<EmployeeResponse> result = employeeService.page(query, departmentId, name, employeeNo, phone);
         return ApiResult.success(result);
     }
 
@@ -41,6 +45,22 @@ public class EmployeeController {
                                               @Valid @RequestBody EmployeeUpdateRequest request) {
         EmployeeResponse result = employeeService.update(id, request);
         return ApiResult.success(result, "更新成功");
+    }
+
+    /**
+     * 员工自助修改个人信息（姓名、手机号）
+     * 普通员工和管理员都可调用，只能改姓名和手机号
+     */
+    @PutMapping("/profile")
+    public ApiResult<EmployeeResponse> updateProfile(
+            @AuthenticationPrincipal CurrentUser user,
+            @Valid @RequestBody EmployeeProfileUpdateRequest request) {
+        Long employeeId = user.employeeId();
+        if (employeeId == null) {
+            return ApiResult.error(400, "当前账号未关联员工信息");
+        }
+        EmployeeResponse result = employeeService.updateProfile(employeeId, request);
+        return ApiResult.success(result, "修改成功");
     }
 
     @PostMapping("/{id}/account")

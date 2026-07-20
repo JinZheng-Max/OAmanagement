@@ -93,4 +93,8 @@
         GROUP BY a.status
     </select>
 
+    <select id="selectActiveEmployeeIds" resultType="long">
+        SELECT id FROM oa_employee WHERE status = 1
+    </select>
+
 </mapper>

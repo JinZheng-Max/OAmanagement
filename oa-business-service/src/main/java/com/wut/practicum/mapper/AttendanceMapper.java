@@ -36,4 +36,6 @@ public interface AttendanceMapper {
                                                   @Param("startDate") String startDate,
                                                   @Param("endDate") String endDate,
                                                   @Param("status") String status);
+
+    List<Long> selectActiveEmployeeIds();
 }

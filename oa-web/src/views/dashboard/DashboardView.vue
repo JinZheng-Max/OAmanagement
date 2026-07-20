@@ -134,13 +134,13 @@ onBeforeUnmount(() => {
             </span>
             <span class="status-time empty" v-else>未打卡</span>
           </div>
-
           <div class="status-item">
-            <span class="status-dot" :class="{ active: todayRecord?.status === 'CHECKED_OUT' }"></span>
+            <span class="status-dot" :class="{ active: todayRecord?.status === 'CHECKED_OUT' || todayRecord?.status === 'LEAVE_EARLY' }"></span>
             <span class="status-label">签退：</span>
             <span class="status-time" v-if="todayRecord?.checkOut">
               {{ formatTime(todayRecord.checkOut) }}
               <el-tag size="small" type="info" class="ip-tag">{{ todayRecord.checkOutIp }}</el-tag>
+              <el-tag v-if="todayRecord?.status === 'LEAVE_EARLY'" size="small" type="warning" class="status-tag" style="margin-left: 5px;">早退</el-tag>
             </span>
             <span class="status-time empty" v-else>未打卡</span>
           </div>
@@ -160,12 +160,12 @@ onBeforeUnmount(() => {
           <el-button
             type="primary"
             size="large"
-            :disabled="!todayRecord || todayRecord.status === 'CHECKED_OUT'"
+            :disabled="!todayRecord || todayRecord.status === 'CHECKED_OUT' || todayRecord.status === 'LEAVE_EARLY'"
             :loading="loading"
             @click="handleCheckOut"
             class="action-btn check-out-btn"
           >
-            {{ todayRecord?.status === 'CHECKED_OUT' ? '已完成签退' : '点击签退 (Check Out)' }}
+            {{ todayRecord?.status === 'CHECKED_OUT' || todayRecord?.status === 'LEAVE_EARLY' ? '已完成签退' : '点击签退 (Check Out)' }}
           </el-button>
         </div>
       </div>
