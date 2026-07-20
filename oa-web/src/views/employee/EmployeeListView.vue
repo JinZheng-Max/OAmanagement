@@ -12,6 +12,7 @@ import {
   CreateEmployeeRequest,
   UpdateEmployeeRequest,
 } from '../../api/employee'
+import { listActiveDepartments, type DepartmentInfo } from '../../api/department'
 
 const auth = useAuthStore()
 
@@ -56,12 +57,19 @@ const accountResult = ref('')
 const passwordDialogVisible = ref(false)
 const passwordResult = ref('')
 
+// 部门列表（用于下拉选择）
+const departments = ref<DepartmentInfo[]>([])
+async function loadDepartments() {
+  try { departments.value = await listActiveDepartments() }
+  catch { /* 部门列表加载失败不影响主体功能 */ }
+}
+
 // 详情抽屉
 const detailDrawerVisible = ref(false)
 const detailData = ref<EmployeeInfo | null>(null)
 
 // ---- 生命周期 ----
-onMounted(() => { fetchData() })
+onMounted(() => { fetchData(); loadDepartments() })
 
 // ---- 数据加载 ----
 async function fetchData() {
@@ -363,7 +371,14 @@ const isAdmin = auth.isAdmin
           <el-input v-model="form.name" placeholder="请输入姓名" />
         </el-form-item>
         <el-form-item label="部门">
-          <el-input v-model="form.departmentId" placeholder="部门ID（数字）" type="number" />
+          <el-select v-model="form.departmentId" placeholder="请选择部门" clearable style="width:100%">
+            <el-option
+              v-for="d in departments"
+              :key="d.id"
+              :label="d.name"
+              :value="d.id"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="职位">
           <el-input v-model="form.position" placeholder="请输入职位" />
