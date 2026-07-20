@@ -13,8 +13,13 @@ public interface EmployeeService {
 
     /**
      * 分页查询员工列表
+     *
+     * @param name       按姓名模糊搜索（可选）
+     * @param employeeNo 按工号模糊搜索（可选）
+     * @param phone      按手机号模糊搜索（可选）
      */
-    PageResult<EmployeeResponse> page(PageQuery query, Long departmentId, String keyword);
+    PageResult<EmployeeResponse> page(PageQuery query, Long departmentId,
+                                      String name, String employeeNo, String phone);
 
     /**
      * 查询员工详情

@@ -1,10 +1,9 @@
 -- ================================================================
 -- V2：请假附件表 + 考勤网络限制字段
--- 1. 创建请假附件表 oa_leave_attachment
--- 2. 考勤表添加签到/签退IP记录
+-- 使用存储过程实现幂等性（重复执行不报错）
 -- ================================================================
 
--- 1. 请假附件表（支持多图片上传，后续接入阿里云OSS）
+-- 1. 创建请假附件表（IF NOT EXISTS 确保幂等）
 CREATE TABLE IF NOT EXISTS `oa_leave_attachment` (
     `id`          BIGINT       AUTO_INCREMENT PRIMARY KEY COMMENT '主键',
     `leave_id`    BIGINT       NULL     COMMENT '关联的请假申请ID（提交请假时关联）',
@@ -17,7 +16,25 @@ CREATE TABLE IF NOT EXISTS `oa_leave_attachment` (
     KEY `idx_leave_id` (`leave_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='请假附件（后续接入阿里云OSS）';
 
--- 2. 考勤表添加IP记录字段（用于判断是否在公司网络内签到）
-ALTER TABLE `oa_attendance`
-    ADD COLUMN `check_in_ip`  VARCHAR(45) NULL COMMENT '签到时客户端IP' AFTER `check_out`,
-    ADD COLUMN `check_out_ip` VARCHAR(45) NULL COMMENT '签退时客户端IP' AFTER `check_in_ip`;
+-- 2. 考勤表添加IP字段（使用存储过程判断字段是否存在，避免重复执行报错）
+DROP PROCEDURE IF EXISTS `sp_add_attendance_ip_columns`;
+DELIMITER //
+CREATE PROCEDURE `sp_add_attendance_ip_columns`()
+BEGIN
+    DECLARE `_exists` INT DEFAULT 0;
+
+    SELECT COUNT(1) INTO `_exists` FROM `information_schema`.`COLUMNS`
+        WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'oa_attendance' AND `COLUMN_NAME` = 'check_in_ip';
+    IF `_exists` = 0 THEN
+        ALTER TABLE `oa_attendance` ADD COLUMN `check_in_ip` VARCHAR(45) NULL COMMENT '签到时客户端IP' AFTER `check_out`;
+    END IF;
+
+    SELECT COUNT(1) INTO `_exists` FROM `information_schema`.`COLUMNS`
+        WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'oa_attendance' AND `COLUMN_NAME` = 'check_out_ip';
+    IF `_exists` = 0 THEN
+        ALTER TABLE `oa_attendance` ADD COLUMN `check_out_ip` VARCHAR(45) NULL COMMENT '签退时客户端IP' AFTER `check_in_ip`;
+    END IF;
+END //
+DELIMITER ;
+CALL `sp_add_attendance_ip_columns`();
+DROP PROCEDURE IF EXISTS `sp_add_attendance_ip_columns`;

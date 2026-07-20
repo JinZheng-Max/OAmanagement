@@ -16,23 +16,21 @@ import java.util.List;
 public interface EmployeeMapper {
 
     /**
-     * 分页查询员工列表（支持关键词搜索和部门筛选）
-     *
-     * @param keyword      搜索关键词（按姓名/工号/手机号模糊匹配）
-     * @param departmentId 部门ID筛选（null 表示不筛选）
-     * @param offset       分页偏移量（从第几条开始）
-     * @param limit        每页大小（取多少条）
-     * @return 员工列表
+     * 分页查询员工列表（支持按姓名/工号/手机号分别模糊搜索 + 部门筛选）
      */
-    List<OaEmployee> selectPage(@Param("keyword") String keyword,
+    List<OaEmployee> selectPage(@Param("name") String name,
+                                @Param("employeeNo") String employeeNo,
+                                @Param("phone") String phone,
                                 @Param("departmentId") Long departmentId,
                                 @Param("offset") int offset,
                                 @Param("limit") int limit);
 
     /**
-     * 查询符合条件的员工总数（用于分页计算总页数）
+     * 查询符合条件的员工总数
      */
-    long countPage(@Param("keyword") String keyword,
+    long countPage(@Param("name") String name,
+                   @Param("employeeNo") String employeeNo,
+                   @Param("phone") String phone,
                    @Param("departmentId") Long departmentId);
 
     /**

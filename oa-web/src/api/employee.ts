@@ -12,6 +12,8 @@ export interface EmployeeInfo {
   position: string | null
   phone: string | null
   status: number        // 1-在职 0-离职
+  hasAccount: boolean   // 是否已开通系统账号
+  userId: number | null // 关联的系统用户ID（已开通账号时有值）
   hireDate: string | null
   createTime: string
   updateTime: string
@@ -63,7 +65,9 @@ export async function getEmployeePage(params: {
   page: number
   size: number
   departmentId?: number | null
-  keyword?: string
+  name?: string
+  employeeNo?: string
+  phone?: string
 }): Promise<PageResult<EmployeeInfo>> {
   const res = await http.get<ApiResult<PageResult<EmployeeInfo>>>('/employees', { params })
   return res.data.data

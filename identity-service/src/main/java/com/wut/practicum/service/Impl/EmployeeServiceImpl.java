@@ -41,9 +41,10 @@ public class EmployeeServiceImpl implements EmployeeService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
     @Override
-    public PageResult<EmployeeResponse> page(PageQuery query, Long departmentId, String keyword) {
+    public PageResult<EmployeeResponse> page(PageQuery query, Long departmentId,
+                                             String name, String employeeNo, String phone) {
         // 1. 查询总数
-        long total = employeeMapper.countPage(keyword, departmentId);
+        long total = employeeMapper.countPage(name, employeeNo, phone, departmentId);
 
         // 2. 如果总数=0，直接返回空列表，不用查数据库
         if (total == 0) {
@@ -51,7 +52,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
 
         // 3. 查询当前页数据
-        List<OaEmployee> list = employeeMapper.selectPage(keyword, departmentId, query.offset(), query.size());
+        List<OaEmployee> list = employeeMapper.selectPage(name, employeeNo, phone, departmentId, query.offset(), query.size());
 
         // 4. 将实体列表转换为 DTO 列表
         // stream() 是 Java 8 的流式操作，map() 做转换，collect() 收集为 List

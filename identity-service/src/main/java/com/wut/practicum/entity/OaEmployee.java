@@ -32,6 +32,12 @@ public class OaEmployee {
     @Schema(description = "在职状态: 1-在职 0-离职")
     private Integer status;
 
+    @Schema(description = "是否已开通系统账号（仅查询时填充，非数据库字段）")
+    private Boolean hasAccount;
+
+    @Schema(description = "关联的系统用户ID（仅查询时填充，用于重置密码等操作）")
+    private Long userId;
+
     @Schema(description = "入职日期")
     private LocalDate hireDate;
 

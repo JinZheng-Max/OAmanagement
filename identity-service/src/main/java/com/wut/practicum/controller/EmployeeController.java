@@ -19,9 +19,11 @@ public class EmployeeController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) Long departmentId,
-            @RequestParam(required = false) String keyword) {
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String employeeNo,
+            @RequestParam(required = false) String phone) {
         PageQuery query = new PageQuery(page, size);
-        PageResult<EmployeeResponse> result = employeeService.page(query, departmentId, keyword);
+        PageResult<EmployeeResponse> result = employeeService.page(query, departmentId, name, employeeNo, phone);
         return ApiResult.success(result);
     }
 
