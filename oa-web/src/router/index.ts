@@ -32,5 +32,9 @@ router.beforeEach((to) => {
   const authenticated = Boolean(localStorage.getItem('oa_token'))
   if (!to.meta.public && !authenticated) return { name: 'login', query: { redirect: to.fullPath } }
   if (to.name === 'login' && authenticated) return { name: 'dashboard' }
+
+  // 员工管理页面仅管理员可访问
+  const isAdmin = JSON.parse(localStorage.getItem('oa_user') ?? 'null')?.role === 'ADMIN'
+  if (to.name === 'employees' && !isAdmin) return { name: 'dashboard' }
 })
 export default router
