@@ -9,6 +9,7 @@
         <result property="name" column="name"/>
         <result property="leaderId" column="leader_id"/>
         <result property="leaderName" column="leader_name"/>
+        <result property="employeeCount" column="employee_count"/>
         <result property="status" column="status"/>
         <result property="sort" column="sort"/>
         <result property="createTime" column="create_time"/>
@@ -18,6 +19,7 @@
     <sql id="selectWithLeader">
         SELECT
             d.id, d.code, d.name, d.leader_id, e.name AS leader_name,
+            (SELECT COUNT(*) FROM oa_employee WHERE department_id = d.id) AS employee_count,
             d.status, d.sort, d.create_time, d.update_time
         FROM sys_department d
         LEFT JOIN oa_employee e ON d.leader_id = e.id

@@ -6,6 +6,7 @@ export interface DepartmentInfo {
   name: string
   leaderId: number | null
   leaderName: string | null
+  employeeCount: number
   status: number
   sort: number
   createTime: string

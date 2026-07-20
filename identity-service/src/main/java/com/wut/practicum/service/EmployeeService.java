@@ -54,6 +54,11 @@ public interface EmployeeService {
     String resetPassword(Long userId);
 
     /**
+     * 按部门ID查询员工（用于部门管理展示部门人员）
+     */
+    List<EmployeeResponse> listByDepartment(Long departmentId);
+
+    /**
      * 员工自助修改个人信息
      * 仅允许修改姓名和手机号
      *

@@ -4,6 +4,7 @@ import com.wut.practicum.common.ApiResult;
 import com.wut.practicum.dto.*;
 import com.wut.practicum.security.CurrentUser;
 import com.wut.practicum.service.EmployeeService;
+import java.util.List;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -27,6 +28,14 @@ public class EmployeeController {
         PageQuery query = new PageQuery(page, size);
         PageResult<EmployeeResponse> result = employeeService.page(query, departmentId, name, employeeNo, phone);
         return ApiResult.success(result);
+    }
+
+    /**
+     * 按部门ID查询员工列表（用于部门管理展示该部门员工）
+     */
+    @GetMapping("/by-department/{departmentId}")
+    public ApiResult<List<EmployeeResponse>> listByDepartment(@PathVariable Long departmentId) {
+        return ApiResult.success(employeeService.listByDepartment(departmentId));
     }
 
     @GetMapping("/{id}")

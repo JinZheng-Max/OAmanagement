@@ -22,6 +22,9 @@ public class SysDepartment {
     @Schema(description = "负责人姓名（JOIN查询）")
     private String leaderName;
 
+    @Schema(description = "员工数（仅查询时填充）")
+    private Integer employeeCount;
+
     @Schema(description = "状态: 1-启用 0-停用")
     private Integer status;
 
