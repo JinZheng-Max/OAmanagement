@@ -21,12 +21,14 @@ const formLoading = ref(false)
 const currentDept = ref<DepartmentInfo | null>(null)
 const form = ref({ code: '', name: '', leaderId: null as number | null, sort: 0 })
 
-// 员工列表（用于负责人下拉选择 + 展开行数据缓存）
-const allEmployees = ref<EmployeeInfo[]>([])
+// 部门人员
 const deptEmployees = ref<Record<number, EmployeeInfo[]>>({})
-const expandingEmployees = ref<Record<number, boolean>>({})
+const currentDeptEmployees = ref<EmployeeInfo[]>([])
+const detailVisible = ref(false)
+const detailDept = ref<DepartmentInfo | null>(null)
+const detailEmployees = ref<EmployeeInfo[]>([])
 
-onMounted(() => { fetchData(); loadEmployees() })
+onMounted(() => fetchData())
 
 async function fetchData() {
   loading.value = true
@@ -37,20 +39,16 @@ async function fetchData() {
   finally { loading.value = false }
 }
 
-/** 加载所有在职员工（用于负责人下拉） */
-async function loadEmployees() {
-  try {
-    const r = await import('../../api/employee').then(m => m.getEmployeePage({ page: 1, size: 999 }))
-    allEmployees.value = r.records.filter(e => e.status === 1)
-  } catch { /* ignore */ }
-}
-
-/** 展开行时加载该部门员工 */
-async function loadDeptEmployees(deptId: number) {
-  if (deptEmployees.value[deptId]) return
-  try {
-    deptEmployees.value[deptId] = await getEmployeesByDepartment(deptId)
-  } catch { deptEmployees.value[deptId] = [] }
+/** 查看部门人员 */
+async function viewDetail(row: DepartmentInfo) {
+  detailDept.value = row
+  detailVisible.value = true
+  if (!deptEmployees.value[row.id]) {
+    try {
+      deptEmployees.value[row.id] = await getEmployeesByDepartment(row.id)
+    } catch { deptEmployees.value[row.id] = [] }
+  }
+  detailEmployees.value = deptEmployees.value[row.id] || []
 }
 
 function handleSearch() { currentPage.value = 1; fetchData() }
@@ -59,12 +57,17 @@ function handleReset() { keyword.value = ''; currentPage.value = 1; fetchData() 
 function openAddDialog() {
   isEdit.value = false; currentDept.value = null
   form.value = { code: '', name: '', leaderId: null, sort: 0 }
+  currentDeptEmployees.value = []
   dialogVisible.value = true
 }
 
-function openEditDialog(row: DepartmentInfo) {
+async function openEditDialog(row: DepartmentInfo) {
   isEdit.value = true; currentDept.value = row
   form.value = { code: row.code, name: row.name, leaderId: row.leaderId, sort: row.sort }
+  if (!deptEmployees.value[row.id]) {
+    try { deptEmployees.value[row.id] = await getEmployeesByDepartment(row.id) } catch { deptEmployees.value[row.id] = [] }
+  }
+  currentDeptEmployees.value = deptEmployees.value[row.id] || []
   dialogVisible.value = true
 }
 
@@ -84,8 +87,8 @@ async function handleSubmit() {
 }
 
 async function toggleStatus(row: DepartmentInfo) {
+  const newStatus = row.status === 1 ? 0 : 1
   try {
-    const newStatus = row.status === 1 ? 0 : 1
     await updateDepartmentStatus(row.id, newStatus)
     row.status = newStatus
     ElMessage.success(newStatus === 1 ? '已启用' : '已停用')
@@ -101,51 +104,34 @@ async function toggleStatus(row: DepartmentInfo) {
     </div>
 
     <div class="search-bar">
-      <el-input v-model="keyword" placeholder="按部门名称/编码搜索" clearable style="width:260px" @keyup.enter="handleSearch" />
-      <el-button type="primary" @click="handleSearch"><el-icon><Search /></el-icon> 搜索</el-button>
-      <el-button @click="handleReset"><el-icon><Refresh /></el-icon> 重置</el-button>
+      <el-input v-model="keyword" placeholder="按部门名称/编码搜索" clearable style="width:260px" @keyup.enter="handleSearch">
+        <template #prefix><el-icon><Search /></el-icon></template>
+      </el-input>
+      <el-button type="primary" @click="handleSearch">搜索</el-button>
+      <el-button @click="handleReset">重置</el-button>
     </div>
 
-    <el-table
-      :data="list" v-loading="loading" border stripe class="dept-table"
-      empty-text="暂无数据" row-key="id"
-      @expand-change="(row: DepartmentInfo) => { loadDeptEmployees(row.id) }"
-    >
-      <!-- 展开行：显示部门员工 -->
-      <el-table-column type="expand" width="50">
+    <el-table :data="list" v-loading="loading" border stripe class="dept-table" empty-text="暂无数据">
+      <el-table-column type="index" label="#" width="55" header-align="center" align="center" />
+      <el-table-column prop="code" label="代码" width="130" header-align="center" align="center" />
+      <el-table-column prop="name" label="部门名称" min-width="150" header-align="center" align="center" />
+      <el-table-column prop="leaderName" label="负责人" width="120" header-align="center" align="center">
         <template #default="{ row }">
-          <div class="expand-content">
-            <div v-if="deptEmployees[row.id]?.length" class="expand-table-wrapper">
-              <table class="emp-table">
-                <thead><tr><th>工号</th><th>姓名</th><th>职位</th></tr></thead>
-                <tbody>
-                  <tr v-for="emp in deptEmployees[row.id]" :key="emp.id">
-                    <td>{{ emp.employeeNo }}</td>
-                    <td>{{ emp.name }}</td>
-                    <td>{{ emp.position || '-' }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div v-else class="expand-empty">该部门暂无员工</div>
-          </div>
+          <span v-if="row.leaderName" class="leader-tag">{{ row.leaderName }}</span>
+          <span v-else class="muted">-</span>
         </template>
       </el-table-column>
-
-      <el-table-column prop="code" label="编码" width="140" header-align="center" align="center" />
-      <el-table-column prop="name" label="部门名称" min-width="160" header-align="center" align="center" />
-      <el-table-column prop="leaderName" label="负责人" width="130" header-align="center" align="center">
-        <template #default="{ row }">{{ row.leaderName || '-' }}</template>
-      </el-table-column>
-      <el-table-column prop="employeeCount" label="员工数" width="90" header-align="center" align="center" />
-      <el-table-column prop="sort" label="排序" width="80" header-align="center" align="center" />
-      <el-table-column label="状态" width="130" header-align="center" align="center">
+      <el-table-column prop="employeeCount" label="人数" width="70" header-align="center" align="center" />
+      <el-table-column label="状态" width="120" header-align="center" align="center">
         <template #default="{ row }">
-          <el-switch :model-value="row.status===1" active-text="启用" inactive-text="停用" inline-prompt @change="toggleStatus(row)" />
+          <el-switch :model-value="row.status===1" inline-prompt @change="toggleStatus(row)" />
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="200" fixed="right" header-align="center" align="center">
+      <el-table-column label="操作" width="220" fixed="right" header-align="center" align="center">
         <template #default="{ row }">
+          <el-button size="small" type="primary" link @click="viewDetail(row)">
+            <el-icon><View /></el-icon> 成员
+          </el-button>
           <el-button size="small" type="primary" link @click="openEditDialog(row)">
             <el-icon><Edit /></el-icon> 编辑
           </el-button>
@@ -172,8 +158,9 @@ async function toggleStatus(row: DepartmentInfo) {
           <el-input v-model="form.name" placeholder="请输入部门名称" />
         </el-form-item>
         <el-form-item label="负责人">
-          <el-select v-model="form.leaderId" placeholder="请选择负责人" clearable filterable style="width:100%">
-            <el-option v-for="e in allEmployees" :key="e.id" :label="`${e.name} (${e.employeeNo})`" :value="e.id" />
+          <el-select v-model="form.leaderId" placeholder="请选择本部门成员" clearable style="width:100%">
+            <el-option v-for="e in currentDeptEmployees" :key="e.id" :label="`${e.name} (${e.employeeNo})`" :value="e.id" />
+            <template #empty><span class="muted" style="font-size:13px;">该部门暂无员工</span></template>
           </el-select>
         </el-form-item>
         <el-form-item label="排序号">
@@ -185,25 +172,55 @@ async function toggleStatus(row: DepartmentInfo) {
         <el-button type="primary" :loading="formLoading" @click="handleSubmit">{{ isEdit?'保存':'确认新增' }}</el-button>
       </template>
     </el-dialog>
+
+    <!-- 部门成员弹窗 -->
+    <el-dialog v-model="detailVisible" :title="`${detailDept?.name || ''} - 成员列表`" width="520px" :close-on-click-modal="false">
+      <div v-if="detailEmployees.length" class="member-grid">
+        <div v-for="emp in detailEmployees" :key="emp.id" class="member-card">
+          <div class="member-avatar">{{ emp.name?.charAt(0) || '?' }}</div>
+          <div class="member-info">
+            <div class="member-name">{{ emp.name }}</div>
+            <div class="member-meta">{{ emp.employeeNo }} · {{ emp.position || '-' }}</div>
+          </div>
+          <el-tag v-if="emp.id === detailDept?.leaderId" size="small" type="primary" class="leader-badge">负责人</el-tag>
+        </div>
+      </div>
+      <div v-else class="empty-state">
+        <el-empty :image-size="80" description="该部门暂无员工" />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <style scoped>
 .dept-page { padding: 16px 20px; background: #fff; border-radius: 8px; min-height: calc(100vh - 80px); }
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 14px; border-bottom: 2px solid #f0f2f5; }
-.page-header h2 { margin: 0; font-size: 22px; font-weight: 700; color: #1d2129; }
+.page-header h2 { margin: 0; font-size: 22px; font-weight: 700; color: #1d2129; letter-spacing: 1px; }
 .page-header h2::before { content: ''; display: inline-block; width: 4px; height: 22px; background: #409eff; border-radius: 2px; margin-right: 10px; vertical-align: -3px; }
 .search-bar { display: flex; gap: 10px; margin-bottom: 16px; padding: 14px 16px; background: #f7f8fa; border-radius: 6px; align-items: center; }
 .dept-table :deep(th.el-table__cell) { text-align: center !important; }
 .dept-table :deep(.el-table__cell) { text-align: center; }
 .pagination-wrapper { display: flex; justify-content: flex-end; margin-top: 14px; }
+.muted { color: #bbb; }
+.leader-tag { color: #409eff; font-weight: 500; }
 
-/* 展开行员工表格 */
-.expand-content { padding: 8px 40px 12px; }
-.expand-table-wrapper { border-radius: 6px; overflow: hidden; border: 1px solid #e8edf3; }
-.emp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.emp-table th { background: #f5f7fa; padding: 8px 16px; text-align: left; font-weight: 600; color: #1d2129; border-bottom: 1px solid #e8edf3; }
-.emp-table td { padding: 7px 16px; border-bottom: 1px solid #f0f2f5; color: #4e5969; }
-.emp-table tr:last-child td { border-bottom: none; }
-.expand-empty { text-align: center; color: #999; padding: 12px; font-size: 13px; }
+/* 成员弹窗网格 */
+.member-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.member-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 16px; border-radius: 8px;
+  border: 1px solid #ebeef5; transition: all 0.2s;
+}
+.member-card:hover { border-color: #409eff; box-shadow: 0 2px 8px rgba(64,158,255,0.1); }
+.member-avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: linear-gradient(135deg, #409eff, #79bbff);
+  color: #fff; font-size: 16px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.member-info { flex: 1; min-width: 0; }
+.member-name { font-size: 14px; font-weight: 600; color: #1d2129; }
+.member-meta { font-size: 12px; color: #86909c; margin-top: 2px; }
+.leader-badge { flex-shrink: 0; }
+.empty-state { padding: 20px 0; }
 </style>
