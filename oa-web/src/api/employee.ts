@@ -108,6 +108,12 @@ export async function changePassword(oldPassword: string, newPassword: string): 
   await http.put('/auth/password', { oldPassword, newPassword })
 }
 
+/** 按部门ID查询员工列表 */
+export async function getEmployeesByDepartment(departmentId: number): Promise<EmployeeInfo[]> {
+  const res = await http.get<ApiResult<EmployeeInfo[]>>(`/employees/by-department/${departmentId}`)
+  return res.data.data
+}
+
 /** 员工修改自己的信息（姓名、手机号） */
 export async function updateProfile(data: { name?: string; phone?: string }): Promise<EmployeeInfo> {
   const res = await http.put<ApiResult<EmployeeInfo>>('/employees/profile', data)

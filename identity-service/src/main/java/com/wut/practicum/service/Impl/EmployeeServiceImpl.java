@@ -74,9 +74,14 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     @Override
-    @Transactional // 事务：这个方法里的数据库操作要么全成功，要么全回滚
+    public List<EmployeeResponse> listByDepartment(Long departmentId) {
+        return employeeMapper.selectByDepartmentId(departmentId).stream()
+                .map(EmployeeResponse::from).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
     public EmployeeResponse create(EmployeeCreateRequest request) {
-        // 1. 校验工号唯一性
         OaEmployee exist = employeeMapper.selectByEmployeeNo(request.employeeNo());
         if (exist != null) {
             throw new BusinessException(2002, HttpStatus.BAD_REQUEST, "工号已存在");
