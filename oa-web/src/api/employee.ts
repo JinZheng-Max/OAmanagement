@@ -102,3 +102,14 @@ export async function resetPassword(userId: number): Promise<string> {
   const res = await http.put<ApiResult<string>>(`/employees/account/${userId}/reset-password`)
   return res.data.data
 }
+
+/** 修改密码 */
+export async function changePassword(oldPassword: string, newPassword: string): Promise<void> {
+  await http.put('/auth/password', { oldPassword, newPassword })
+}
+
+/** 员工修改自己的信息（姓名、手机号） */
+export async function updateProfile(data: { name?: string; phone?: string }): Promise<EmployeeInfo> {
+  const res = await http.put<ApiResult<EmployeeInfo>>('/employees/profile', data)
+  return res.data.data
+}

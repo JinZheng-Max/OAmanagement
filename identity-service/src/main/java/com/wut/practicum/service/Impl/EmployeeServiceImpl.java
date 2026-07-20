@@ -201,6 +201,27 @@ public class EmployeeServiceImpl implements EmployeeService {
         return newPassword;
     }
 
+    @Override
+    @Transactional
+    public EmployeeResponse updateProfile(Long employeeId, EmployeeProfileUpdateRequest request) {
+        OaEmployee emp = employeeMapper.selectById(employeeId);
+        if (emp == null) {
+            throw new BusinessException(2001, HttpStatus.NOT_FOUND, "员工不存在");
+        }
+
+        // 仅允许修改姓名和手机号
+        if (request.name() != null && !request.name().isBlank()) {
+            emp.setName(request.name());
+        }
+        if (request.phone() != null && !request.phone().isBlank()) {
+            emp.setPhone(request.phone());
+        }
+
+        employeeMapper.update(emp);
+        log.info("员工自助更新信息: employeeId={}", employeeId);
+        return EmployeeResponse.from(employeeMapper.selectById(employeeId));
+    }
+
     /**
      * 生成8位随机密码（包含大小写字母和数字）
      * 这是私有方法，只在本类内部使用

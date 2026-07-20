@@ -17,7 +17,13 @@ const router = createRouter({
           name: 'dashboard',
           component: () => import('../views/dashboard/DashboardView.vue'),
         },
-        /** 员工管理 */
+        /** 个人信息 */
+        {
+          path: 'profile',
+          name: 'profile',
+          component: () => import('../views/profile/ProfileView.vue'),
+        },
+        /** 员工管理（仅管理员） */
         {
           path: 'employees',
           name: 'employees',

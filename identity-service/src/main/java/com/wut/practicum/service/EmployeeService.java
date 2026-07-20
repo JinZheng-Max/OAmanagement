@@ -52,4 +52,14 @@ public interface EmployeeService {
      * @return 新的临时密码
      */
     String resetPassword(Long userId);
+
+    /**
+     * 员工自助修改个人信息
+     * 仅允许修改姓名和手机号
+     *
+     * @param employeeId 员工ID
+     * @param request    要修改的信息
+     * @return 更新后的员工信息
+     */
+    EmployeeResponse updateProfile(Long employeeId, EmployeeProfileUpdateRequest request);
 }
