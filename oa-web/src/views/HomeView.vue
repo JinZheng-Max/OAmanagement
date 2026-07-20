@@ -52,21 +52,11 @@ function handleMenuSelect(index: string) {
           <span>员工管理</span>
         </el-menu-item>
 
-        <!-- 后续模块预留位置（暂时注释掉） -->
-        <!--
-        <el-menu-item index="/departments">
-          <el-icon><span>🏢</span></el-icon>
-          <span>部门管理</span>
-        </el-menu-item>
+        <!-- 考勤管理 -->
         <el-menu-item index="/attendance">
           <el-icon><span>📋</span></el-icon>
           <span>考勤管理</span>
         </el-menu-item>
-        <el-menu-item index="/leaves">
-          <el-icon><span>📝</span></el-icon>
-          <span>请假审批</span>
-        </el-menu-item>
-        -->
       </el-menu>
 
       <!-- 底部用户信息 -->

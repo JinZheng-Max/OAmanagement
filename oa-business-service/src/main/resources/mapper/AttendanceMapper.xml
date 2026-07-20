@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wut.practicum.mapper.AttendanceMapper">
+
+    <resultMap id="AttendanceMap" type="com.wut.practicum.entity.OaAttendance">
+        <id property="id" column="id"/>
+        <result property="employeeId" column="employee_id"/>
+        <result property="workDate" column="work_date"/>
+        <result property="checkIn" column="check_in"/>
+        <result property="checkOut" column="check_out"/>
+        <result property="checkInIp" column="check_in_ip"/>
+        <result property="checkOutIp" column="check_out_ip"/>
+        <result property="status" column="status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="employeeName" column="employee_name"/>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO oa_attendance (employee_id, work_date, check_in, check_out, check_in_ip, check_out_ip, status, create_time, update_time)
+        VALUES (#{employeeId}, #{workDate}, #{checkIn}, #{checkOut}, #{checkInIp}, #{checkOutIp}, #{status}, #{createTime}, #{updateTime})
+    </insert>
+
+    <update id="update">
+        UPDATE oa_attendance
+        <set>
+            <if test="checkIn != null">check_in = #{checkIn},</if>
+            <if test="checkOut != null">check_out = #{checkOut},</if>
+            <if test="checkInIp != null">check_in_ip = #{checkInIp},</if>
+            <if test="checkOutIp != null">check_out_ip = #{checkOutIp},</if>
+            <if test="status != null">status = #{status},</if>
+            update_time = #{updateTime}
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectByEmployeeAndDate" resultMap="AttendanceMap">
+        SELECT a.*, e.name as employee_name
+        FROM oa_attendance a
+        LEFT JOIN oa_employee e ON a.employee_id = e.id
+        WHERE a.employee_id = #{employeeId} AND a.work_date = #{workDate}
+    </select>
+
+    <select id="selectById" resultMap="AttendanceMap">
+        SELECT a.*, e.name as employee_name
+        FROM oa_attendance a
+        LEFT JOIN oa_employee e ON a.employee_id = e.id
+        WHERE a.id = #{id}
+    </select>
+
+    <sql id="whereClause">
+        <where>
+            <if test="employeeId != null">
+                AND a.employee_id = #{employeeId}
+            </if>
+            <if test="departmentId != null">
+                AND emp.department_id = #{departmentId}
+            </if>
+            <if test="startDate != null and startDate != ''">
+                AND a.work_date &gt;= #{startDate}
+            </if>
+            <if test="endDate != null and endDate != ''">
+                AND a.work_date &lt;= #{endDate}
+            </if>
+            <if test="status != null and status != ''">
+                AND a.status = #{status}
+            </if>
+        </where>
+    </sql>
+
+    <select id="selectPageList" resultMap="AttendanceMap">
+        SELECT a.*, emp.name as employee_name
+        FROM oa_attendance a
+        LEFT JOIN oa_employee emp ON a.employee_id = emp.id
+        <include refid="whereClause"/>
+        ORDER BY a.work_date DESC, a.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="selectCount" resultType="long">
+        SELECT COUNT(*)
+        FROM oa_attendance a
+        LEFT JOIN oa_employee emp ON a.employee_id = emp.id
+        <include refid="whereClause"/>
+    </select>
+
+    <select id="countStatusByFilter" resultType="map">
+        SELECT a.status as status, COUNT(*) as count
+        FROM oa_attendance a
+        LEFT JOIN oa_employee emp ON a.employee_id = emp.id
+        <include refid="whereClause"/>
+        GROUP BY a.status
+    </select>
+
+</mapper>

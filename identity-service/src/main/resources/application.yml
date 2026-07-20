@@ -10,14 +10,19 @@ spring:
     active: ${SPRING_PROFILES_ACTIVE:dev}
   cloud:
     nacos:
+      server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:nacos}
       config:
-        enabled: false
+        enabled: true
+        file-extension: yml
       discovery:
-        enabled: false
+        enabled: true
   config:
     import:
       - optional:file:.env[.properties]
       - optional:file:../.env[.properties]
+      - "optional:nacos:${spring.application.name}.yml"
   datasource:
     url: ${MYSQL_URL}
     username: ${MYSQL_USERNAME}
@@ -25,16 +30,11 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
       timeout: 2s
-  cloud:
-    nacos:
-      discovery:
-        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
-        username: ${NACOS_USERNAME:nacos}
-        password: ${NACOS_PASSWORD:x}
+
   flyway:
     enabled: true
     baseline-on-migrate: true
@@ -48,8 +48,8 @@ mybatis:
 oa:
   bootstrap:
     admin:
-      username: ${OA_BOOTSTRAP_ADMIN_USERNAME:}
-      password: ${OA_BOOTSTRAP_ADMIN_PASSWORD:}
+      username: ${OA_BOOTSTRAP_ADMIN_USERNAME}
+      password: ${OA_BOOTSTRAP_ADMIN_PASSWORD}
   security:
     jwt-secret: ${JWT_SECRET}
     access-token-ttl: 30m
@@ -61,7 +61,6 @@ management:
     web:
       exposure:
         include: health,info
-
 
 logging:
   file:

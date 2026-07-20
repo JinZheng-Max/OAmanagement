@@ -1,4 +1,4 @@
-package com.wut.practicum.service.impl;
+package com.wut.practicum.service.Impl;
 
 import com.wut.practicum.common.BusinessException;
 import com.wut.practicum.dto.LoginRequest;

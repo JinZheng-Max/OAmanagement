@@ -23,6 +23,12 @@ const router = createRouter({
           name: 'employees',
           component: EmployeeListView,
         },
+        /** 考勤管理 */
+        {
+          path: 'attendance',
+          name: 'attendance',
+          component: () => import('../views/attendance/AttendanceView.vue'),
+        },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },
