@@ -204,6 +204,20 @@ async function handleResetPassword(userId: number) {
   } catch { /* 取消操作 */ }
 }
 
+/** 直接在表格中切换在职/离职状态 */
+async function handleStatusChange(row: EmployeeInfo) {
+  try {
+    const newStatus = row.status === 1 ? 0 : 1
+    await updateEmployee(row.id, { status: newStatus })
+    row.status = newStatus
+    ElMessage.success(newStatus === 1 ? '已设置为在职' : '已设置为离职')
+  } catch (err: any) {
+    ElMessage.error('状态更新失败')
+    // 刷新恢复原始状态
+    fetchData()
+  }
+}
+
 const isAdmin = auth.isAdmin
 </script>
 
@@ -238,8 +252,12 @@ const isAdmin = auth.isAdmin
         style="width: 180px"
         @keyup.enter="handleSearch"
       />
-      <el-button type="primary" @click="handleSearch">搜索</el-button>
-      <el-button @click="handleReset">重置</el-button>
+      <el-button type="primary" @click="handleSearch">
+        <el-icon><Search /></el-icon> 搜索
+      </el-button>
+      <el-button @click="handleReset">
+        <el-icon><Refresh /></el-icon> 重置
+      </el-button>
     </div>
 
     <!-- ===== 员工表格 ===== -->
@@ -258,7 +276,7 @@ const isAdmin = auth.isAdmin
       <el-table-column prop="position" label="职位" min-width="140" header-align="center" align="center" />
       <el-table-column prop="phone" label="手机号" width="140" header-align="center" align="center" />
 
-      <!-- 账号状态列 -->
+      <!-- 系统账号列 -->
       <el-table-column label="系统账号" width="110" header-align="center" align="center">
         <template #default="{ row }">
           <el-tag :type="row.hasAccount ? 'success' : 'info'" size="small">
@@ -267,21 +285,31 @@ const isAdmin = auth.isAdmin
         </template>
       </el-table-column>
 
-      <el-table-column prop="status" label="状态" width="85" header-align="center" align="center">
+      <!-- 状态列：开关 + 文字 -->
+      <el-table-column label="状态" width="140" header-align="center" align="center">
         <template #default="{ row }">
-          <el-tag :type="row.status === 1 ? 'success' : 'danger'" size="small">
-            {{ row.status === 1 ? '在职' : '离职' }}
-          </el-tag>
+          <div class="status-cell">
+            <el-switch
+              :model-value="row.status === 1"
+              :active-text="row.status === 1 ? '在职' : ''"
+              :inactive-text="row.status === 0 ? '离职' : ''"
+              inline-prompt
+              @change="handleStatusChange(row)"
+            />
+          </div>
         </template>
       </el-table-column>
 
       <el-table-column prop="hireDate" label="入职日期" width="120" header-align="center" align="center" />
-      <el-table-column label="操作" width="310" fixed="right" header-align="center" align="center">
+      <el-table-column label="操作" width="320" fixed="right" header-align="center" align="center">
         <template #default="{ row }">
-          <el-button size="small" type="primary" link @click="openDetailDrawer(row)">查看</el-button>
-          <el-button size="small" type="primary" link @click="openEditDialog(row)">编辑</el-button>
+          <el-button size="small" type="primary" link @click="openDetailDrawer(row)">
+            <el-icon><View /></el-icon> 查看
+          </el-button>
+          <el-button size="small" type="primary" link @click="openEditDialog(row)">
+            <el-icon><Edit /></el-icon> 编辑
+          </el-button>
 
-          <!-- 已开通账号的 → 显示重置密码；未开通 → 显示开通账号 -->
           <template v-if="isAdmin">
             <el-button
               v-if="row.hasAccount && row.userId"
@@ -290,7 +318,7 @@ const isAdmin = auth.isAdmin
               link
               @click="handleResetPassword(row.userId)"
             >
-              重置密码
+              <el-icon><Key /></el-icon> 重置密码
             </el-button>
             <el-button
               v-else
@@ -299,7 +327,7 @@ const isAdmin = auth.isAdmin
               link
               @click="openAccountDialog(row)"
             >
-              开通账号
+              <el-icon><Plus /></el-icon> 开通账号
             </el-button>
           </template>
         </template>
@@ -508,6 +536,17 @@ const isAdmin = auth.isAdmin
   width: 90px;
   color: #666;
   flex-shrink: 0;
+}
+
+/* ---- 状态列开关 ---- */
+.status-cell {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.status-cell :deep(.el-switch) {
+  --el-switch-on-color: #67c23a;
+  --el-switch-off-color: #f56c6c;
 }
 
 /* ---- 密码展示 ---- */
