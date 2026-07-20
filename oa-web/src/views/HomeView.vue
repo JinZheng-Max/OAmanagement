@@ -52,6 +52,12 @@ function handleMenuSelect(index: string) {
           <span>个人信息</span>
         </el-menu-item>
 
+        <!-- 部门管理（仅管理员可见） -->
+        <el-menu-item v-if="auth.isAdmin" index="/departments">
+          <el-icon><span>🏢</span></el-icon>
+          <span>部门管理</span>
+        </el-menu-item>
+
         <!-- 员工管理（仅管理员可见） -->
         <el-menu-item v-if="auth.isAdmin" index="/employees">
           <el-icon><span>👥</span></el-icon>
