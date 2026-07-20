@@ -90,9 +90,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         emp.setPosition(request.position());
         emp.setPhone(request.phone());
 
-        // 解析日期：请求中传来的是 String "2026-07-01"，转为 LocalDate 类型
+        // 入职日期：如果没填则默认为当天
         if (request.hireDate() != null && !request.hireDate().isBlank()) {
             emp.setHireDate(LocalDate.parse(request.hireDate()));
+        } else {
+            emp.setHireDate(LocalDate.now());
         }
 
         emp.setStatus(1); // 默认为在职

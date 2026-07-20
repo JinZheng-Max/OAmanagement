@@ -250,15 +250,16 @@ const isAdmin = auth.isAdmin
       stripe
       style="width: 100%"
       empty-text="暂无数据"
+      class="employee-table"
     >
-      <el-table-column prop="employeeNo" label="工号" width="110" />
-      <el-table-column prop="name" label="姓名" width="100" />
-      <el-table-column prop="departmentName" label="部门" width="130" />
-      <el-table-column prop="position" label="职位" min-width="130" />
-      <el-table-column prop="phone" label="手机号" width="130" />
+      <el-table-column prop="employeeNo" label="工号" width="120" header-align="center" align="center" />
+      <el-table-column prop="name" label="姓名" width="110" header-align="center" align="center" />
+      <el-table-column prop="departmentName" label="部门" width="140" header-align="center" align="center" />
+      <el-table-column prop="position" label="职位" min-width="140" header-align="center" align="center" />
+      <el-table-column prop="phone" label="手机号" width="140" header-align="center" align="center" />
 
       <!-- 账号状态列 -->
-      <el-table-column label="系统账号" width="100" align="center">
+      <el-table-column label="系统账号" width="110" header-align="center" align="center">
         <template #default="{ row }">
           <el-tag :type="row.hasAccount ? 'success' : 'info'" size="small">
             {{ row.hasAccount ? '已开通' : '未开通' }}
@@ -266,16 +267,16 @@ const isAdmin = auth.isAdmin
         </template>
       </el-table-column>
 
-      <el-table-column prop="status" label="状态" width="80" align="center">
+      <el-table-column prop="status" label="状态" width="85" header-align="center" align="center">
         <template #default="{ row }">
-          <el-tag :type="row.status === 1 ? 'success' : 'danger'">
+          <el-tag :type="row.status === 1 ? 'success' : 'danger'" size="small">
             {{ row.status === 1 ? '在职' : '离职' }}
           </el-tag>
         </template>
       </el-table-column>
 
-      <el-table-column prop="hireDate" label="入职日期" width="110" />
-      <el-table-column label="操作" width="300" fixed="right">
+      <el-table-column prop="hireDate" label="入职日期" width="120" header-align="center" align="center" />
+      <el-table-column label="操作" width="310" fixed="right" header-align="center" align="center">
         <template #default="{ row }">
           <el-button size="small" type="primary" link @click="openDetailDrawer(row)">查看</el-button>
           <el-button size="small" type="primary" link @click="openEditDialog(row)">编辑</el-button>
@@ -434,14 +435,94 @@ const isAdmin = auth.isAdmin
 </template>
 
 <style scoped>
-.employee-page { padding: 24px; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.page-header h2 { margin: 0; font-size: 20px; color: #172033; }
-.search-bar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
-.pagination-wrapper { display: flex; justify-content: flex-end; margin-top: 20px; }
-.detail-item { display: flex; padding: 12px 0; border-bottom: 1px solid #f0f0f0; }
-.detail-item label { width: 90px; color: #666; flex-shrink: 0; }
+.employee-page {
+  padding: 16px 20px;
+  background: #fff;
+  border-radius: 8px;
+  min-height: calc(100vh - 80px);
+}
+
+/* ---- 页面标题 ---- */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid #f0f2f5;
+}
+.page-header h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #1d2129;
+  letter-spacing: 1px;
+}
+.page-header h2::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 22px;
+  background: #409eff;
+  border-radius: 2px;
+  margin-right: 10px;
+  vertical-align: -3px;
+}
+
+/* ---- 搜索栏 ---- */
+.search-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  background: #f7f8fa;
+  border-radius: 6px;
+  align-items: center;
+}
+.search-bar :deep(.el-input__wrapper) {
+  border-radius: 6px;
+}
+
+/* ---- 表格居中 ---- */
+.employee-table :deep(th.el-table__cell) {
+  text-align: center !important;
+}
+.employee-table :deep(.el-table__cell) {
+  text-align: center;
+}
+
+/* ---- 分页 ---- */
+.pagination-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+/* ---- 详情抽屉 ---- */
+.detail-item {
+  display: flex;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+.detail-item label {
+  width: 90px;
+  color: #666;
+  flex-shrink: 0;
+}
+
+/* ---- 密码展示 ---- */
 .result-box { text-align: center; padding: 16px 0; }
 .result-box p { margin: 8px 0; font-size: 14px; }
-.password-display { display: inline-block; background: #f5f7fa; border: 1px dashed #409eff; border-radius: 4px; padding: 10px 24px; margin: 12px 0; font-size: 18px; font-weight: bold; letter-spacing: 2px; color: #409eff; }
+.password-display {
+  display: inline-block;
+  background: #f5f7fa;
+  border: 1px dashed #409eff;
+  border-radius: 4px;
+  padding: 10px 24px;
+  margin: 12px 0;
+  font-size: 18px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  color: #409eff;
+}
 </style>
