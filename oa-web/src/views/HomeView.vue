@@ -46,25 +46,32 @@ function handleMenuSelect(index: string) {
           <span>工作台</span>
         </el-menu-item>
 
-        <!-- 个人信息（仅普通员工可见） -->
-        <el-menu-item v-if="!auth.isAdmin" index="/profile">
-          <el-icon><User /></el-icon>
+        <!-- 个人信息 -->
+        <el-menu-item index="/profile">
+          <el-icon><span>👤</span></el-icon>
           <span>个人信息</span>
         </el-menu-item>
-        <!-- 我的部门（仅普通员工可见） -->
-        <el-menu-item v-if="!auth.isAdmin" index="/my-department">
-          <el-icon><HomeFilled /></el-icon>
+
+        <!-- 我的部门（非超级管理员：部门管理员和普通员工显示） -->
+        <el-menu-item v-if="!auth.isSuperAdmin" index="/my-department">
+          <el-icon><span>🏢</span></el-icon>
           <span>我的部门</span>
         </el-menu-item>
 
-        <!-- 部门管理（仅管理员可见） -->
-        <el-menu-item v-if="auth.isAdmin" index="/departments">
+        <!-- 部门员工管理（仅部门管理员可见） -->
+        <el-menu-item v-if="auth.isDeptManager" index="/dept-employees">
+          <el-icon><span>👥</span></el-icon>
+          <span>部门员工管理</span>
+        </el-menu-item>
+
+        <!-- 部门管理（仅超级管理员可见） -->
+        <el-menu-item v-if="auth.isSuperAdmin" index="/departments">
           <el-icon><span>🏢</span></el-icon>
           <span>部门管理</span>
         </el-menu-item>
 
-        <!-- 员工管理（仅管理员可见） -->
-        <el-menu-item v-if="auth.isAdmin" index="/employees">
+        <!-- 员工管理（仅超级管理员可见） -->
+        <el-menu-item v-if="auth.isSuperAdmin" index="/employees">
           <el-icon><span>👥</span></el-icon>
           <span>员工管理</span>
         </el-menu-item>
@@ -74,14 +81,20 @@ function handleMenuSelect(index: string) {
           <el-icon><span>📋</span></el-icon>
           <span>考勤管理</span>
         </el-menu-item>
+
+        <!-- 公告制度与全文检索 -->
+        <el-menu-item index="/contents">
+          <el-icon><span>📢</span></el-icon>
+          <span>公告制度</span>
+        </el-menu-item>
       </el-menu>
 
       <!-- 底部用户信息 -->
       <div class="sidebar-footer">
         <div class="user-info">
           <span class="username">{{ auth.user?.username }}</span>
-          <el-tag size="small" :type="auth.isAdmin ? 'danger' : 'info'">
-            {{ auth.isAdmin ? '管理员' : '员工' }}
+          <el-tag size="small" :type="auth.isSuperAdmin ? 'danger' : (auth.isDeptManager ? 'warning' : 'info')">
+            {{ auth.roleText }}
           </el-tag>
         </div>
         <el-button size="small" @click="signOut">退出</el-button>

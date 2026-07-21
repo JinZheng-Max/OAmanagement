@@ -1,4 +1,4 @@
-package com.wut.practicum.service.Impl;
+package com.wut.practicum.service.impl;
 
 import com.wut.practicum.common.BusinessException;
 import com.wut.practicum.dto.LoginRequest;
@@ -43,7 +43,7 @@ public class UserServiceImpl implements UserService {
             log.warn("Login rejected username={} reason=disabled", request.username());
             throw new BusinessException(1002, HttpStatus.FORBIDDEN, "账号已被禁用，请联系管理员");
         }
-        if (!"ADMIN".equals(user.getRole()) && !"EMPLOYEE".equals(user.getRole())) {
+        if (!"SUPER_ADMIN".equals(user.getRole()) && !"DEPT_MANAGER".equals(user.getRole()) && !"EMPLOYEE".equals(user.getRole()) && !"ADMIN".equals(user.getRole())) {
             log.warn("Login rejected username={} reason=invalid_role role={}", request.username(), user.getRole());
             throw new BusinessException(1003, HttpStatus.FORBIDDEN, "账号角色配置错误");
         }

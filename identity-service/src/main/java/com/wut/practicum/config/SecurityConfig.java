@@ -31,7 +31,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/login", "/v3/api-docs/**", "/swagger-ui/**", "/actuator/health", "/internal/**").permitAll()
                         .requestMatchers("/api/employees/profile", "/api/departments/my").authenticated()
-                        .requestMatchers("/api/admin/**", "/api/employees/**", "/api/departments/**").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/**", "/api/employees/**", "/api/departments/**").hasAnyRole("SUPER_ADMIN", "DEPT_MANAGER", "ADMIN")
                         .anyRequest().authenticated())
                 .exceptionHandling(errors -> errors
                         .authenticationEntryPoint((request, response, ex) -> writeError(response, mapper, 401, "未登录或登录已过期"))

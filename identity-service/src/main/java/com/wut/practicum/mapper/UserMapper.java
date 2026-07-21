@@ -28,6 +28,11 @@ public interface UserMapper {
     SysUser selectByEmployeeId(@Param("employeeId") Long employeeId);
 
     /**
+     * 更新用户角色
+     */
+    int updateRole(@Param("id") Long id, @Param("role") String role);
+
+    /**
      * 新增用户
      */
     int insertUser(SysUser sysUser);

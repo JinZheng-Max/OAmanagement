@@ -24,6 +24,7 @@ public record EmployeeResponse(
         @Schema(description = "在职状态: 1-在职 0-离职") Integer status,
         @Schema(description = "是否已开通系统账号") Boolean hasAccount,
         @Schema(description = "关联的系统用户ID（已开通账号时有效）") Long userId,
+        @Schema(description = "系统账号角色: SUPER_ADMIN / DEPT_MANAGER / EMPLOYEE") String role,
         @Schema(description = "入职日期") LocalDate hireDate,
         @Schema(description = "创建时间") LocalDateTime createTime,
         @Schema(description = "更新时间") LocalDateTime updateTime) {
@@ -41,7 +42,7 @@ public record EmployeeResponse(
                 emp.getDepartmentId(), emp.getDepartmentName(),
                 emp.getPosition(), emp.getPhone(), emp.getStatus(),
                 emp.getHasAccount() != null && emp.getHasAccount(),
-                emp.getUserId(),
+                emp.getUserId(), emp.getRole(),
                 emp.getHireDate(), emp.getCreateTime(), emp.getUpdateTime()
         );
     }

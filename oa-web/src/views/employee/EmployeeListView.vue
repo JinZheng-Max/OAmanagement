@@ -50,7 +50,7 @@ const editStatus = ref(1)
 
 // 开通账号弹窗
 const accountDialogVisible = ref(false)
-const accountForm = ref({ username: '' })
+const accountForm = ref({ username: '', role: 'EMPLOYEE' })
 const accountResult = ref('')
 
 // 重置密码结果弹窗
@@ -175,7 +175,7 @@ function openDetailDrawer(row: EmployeeInfo) {
 // ---- 开通账号 ----
 function openAccountDialog(row: EmployeeInfo) {
   currentEmployee.value = row
-  accountForm.value = { username: '' }
+  accountForm.value = { username: '', role: 'EMPLOYEE' }
   accountResult.value = ''
   accountDialogVisible.value = true
 }
@@ -186,6 +186,7 @@ async function handleCreateAccount() {
   try {
     const password = await createAccount(currentEmployee.value.id, {
       username: accountForm.value.username || undefined,
+      role: accountForm.value.role || 'EMPLOYEE'
     })
     accountResult.value = password
     ElMessage.success('账号开通成功')
@@ -224,6 +225,22 @@ async function handleStatusChange(row: EmployeeInfo) {
     // 刷新恢复原始状态
     fetchData()
   }
+}
+
+function getRoleTagType(role: string | null | undefined): string {
+  if (!role) return 'info'
+  const r = role.toUpperCase()
+  if (r.includes('SUPER_ADMIN') || r.includes('ADMIN')) return 'danger'
+  if (r.includes('DEPT_MANAGER') || r.includes('MANAGER')) return 'warning'
+  return 'info'
+}
+
+function getRoleLabel(role: string | null | undefined): string {
+  if (!role) return '普通员工'
+  const r = role.toUpperCase()
+  if (r.includes('SUPER_ADMIN') || r.includes('ADMIN')) return '超级管理员'
+  if (r.includes('DEPT_MANAGER') || r.includes('MANAGER')) return '部门管理员'
+  return '普通员工'
 }
 
 const isAdmin = auth.isAdmin
@@ -290,6 +307,18 @@ const isAdmin = auth.isAdmin
           <el-tag :type="row.hasAccount ? 'success' : 'info'" size="small">
             {{ row.hasAccount ? '已开通' : '未开通' }}
           </el-tag>
+        </template>
+      </el-table-column>
+
+      <!-- 系统角色列 -->
+      <el-table-column label="系统角色" width="130" header-align="center" align="center">
+        <template #default="{ row }">
+          <template v-if="row.hasAccount">
+            <el-tag :type="getRoleTagType(row.role)" size="small">
+              {{ getRoleLabel(row.role) }}
+            </el-tag>
+          </template>
+          <span v-else style="color: #999; font-size: 12px;">-</span>
         </template>
       </el-table-column>
 
@@ -440,9 +469,16 @@ const isAdmin = auth.isAdmin
         <p style="font-size: 13px; color: #666; margin-bottom: 16px;">
           开通后该员工将拥有系统登录权限，可使用账号密码登录 OA 系统
         </p>
-        <el-form :model="accountForm" label-width="80px">
+        <el-form :model="accountForm" label-width="90px">
           <el-form-item label="用户名">
             <el-input v-model="accountForm.username" placeholder="不填则默认使用工号" />
+          </el-form-item>
+          <el-form-item label="系统角色" required>
+            <el-select v-model="accountForm.role" style="width: 100%">
+              <el-option label="普通员工 (EMPLOYEE)" value="EMPLOYEE" />
+              <el-option label="部门管理员 (DEPT_MANAGER)" value="DEPT_MANAGER" />
+              <el-option label="超级管理员 (SUPER_ADMIN)" value="SUPER_ADMIN" />
+            </el-select>
           </el-form-item>
         </el-form>
       </div>

@@ -4,7 +4,7 @@
 
 - `oa-gateway`：10001，统一路由、TraceId、JWT 与 Redis 会话前置校验。
 - `identity-service`：8850，登录、注销、当前用户和修改密码。
-- `oa-business-service`：8849，本模块只完成服务注册骨架。
+- `oa-attendance-service`：8849，本模块只完成服务注册骨架。
 - `oa-web`：Vue 3 + TypeScript 登录和权限路由骨架。
 
 ## 启动准备
@@ -13,7 +13,7 @@
 2. 复制 `.env.example` 并在 IDE/终端中设置变量；不得提交真实密码或 JWT 密钥。
 3. 创建 `oa_identity` 数据库。identity-service 启动时由 Flyway 建表。
 4. 首次启动可设置 `OA_BOOTSTRAP_ADMIN_USERNAME` 与 `OA_BOOTSTRAP_ADMIN_PASSWORD`；账号存在后删除这两个变量。
-5. 启动 Nacos、Redis、identity-service、oa-business-service、oa-gateway，最后在 `oa-web` 执行 `npm run dev`。
+5. 启动 Nacos、Redis、identity-service、oa-attendance-service、oa-gateway，最后在 `oa-web` 执行 `npm run dev`。
 
 ## 当前接口
 

@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wut.practicum.mapper.ContentMapper">
+
+    <resultMap id="ContentMap" type="com.wut.practicum.entity.ContentEntity">
+        <id property="id" column="id"/>
+        <result property="type" column="type"/>
+        <result property="title" column="title"/>
+        <result property="category" column="category"/>
+        <result property="body" column="body"/>
+        <result property="status" column="status"/>
+        <result property="scope" column="scope"/>
+        <result property="accessDepartmentId" column="access_department_id"/>
+        <result property="publisherId" column="publisher_id"/>
+        <result property="publishTime" column="publish_time"/>
+        <result property="version" column="version"/>
+        <result property="viewCount" column="view_count"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO oa_content (
+            type, title, category, body, status, scope, publisher_id, publish_time, version, view_count, create_time, update_time
+        ) VALUES (
+            #{type}, #{title}, #{category}, #{body}, #{status}, #{scope}, #{publisherId}, #{publishTime}, #{version}, #{viewCount}, NOW(), NOW()
+        )
+    </insert>
+
+    <update id="update">
+        UPDATE oa_content
+        <set>
+            <if test="type != null">type = #{type},</if>
+            <if test="title != null">title = #{title},</if>
+            <if test="category != null">category = #{category},</if>
+            <if test="body != null">body = #{body},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="scope != null">scope = #{scope},</if>
+            <if test="publisherId != null">publisher_id = #{publisherId},</if>
+            <if test="publishTime != null">publish_time = #{publishTime},</if>
+            <if test="version != null">version = #{version},</if>
+            <if test="viewCount != null">view_count = #{viewCount},</if>
+            update_time = NOW()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM oa_content WHERE id = #{id}
+    </delete>
+
+    <select id="selectById" resultMap="ContentMap">
+        SELECT * FROM oa_content WHERE id = #{id}
+    </select>
+
+    <select id="selectByTitle" resultMap="ContentMap">
+        SELECT * FROM oa_content WHERE title = #{title} LIMIT 1
+    </select>
+
+    <select id="selectList" resultMap="ContentMap">
+        SELECT * FROM oa_content
+        <where>
+            <if test="type != null and type != ''">
+                AND type = #{type}
+            </if>
+            <if test="category != null and category != ''">
+                AND category = #{category}
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+            <if test="!isAdmin">
+                AND status = 'PUBLISHED'
+            </if>
+        </where>
+        ORDER BY publish_time DESC, id DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countList" resultType="long">
+        SELECT COUNT(1) FROM oa_content
+        <where>
+            <if test="type != null and type != ''">
+                AND type = #{type}
+            </if>
+            <if test="category != null and category != ''">
+                AND category = #{category}
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+            <if test="!isAdmin">
+                AND status = 'PUBLISHED'
+            </if>
+        </where>
+    </select>
+
+    <select id="selectAllPublished" resultMap="ContentMap">
+        SELECT * FROM oa_content WHERE status = 'PUBLISHED'
+    </select>
+
+    <update id="incrementViewCount">
+        UPDATE oa_content SET view_count = view_count + #{delta} WHERE id = #{id}
+    </update>
+
+</mapper>

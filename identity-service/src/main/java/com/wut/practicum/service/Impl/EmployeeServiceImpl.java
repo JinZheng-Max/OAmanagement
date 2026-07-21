@@ -1,9 +1,10 @@
-package com.wut.practicum.service.Impl;
+package com.wut.practicum.service.impl;
 
 import com.wut.practicum.common.BusinessException;
 import com.wut.practicum.dto.*;
 import com.wut.practicum.entity.OaEmployee;
 import com.wut.practicum.entity.SysUser;
+import com.wut.practicum.mapper.DepartmentMapper;
 import com.wut.practicum.mapper.EmployeeMapper;
 import com.wut.practicum.mapper.UserMapper;
 import com.wut.practicum.service.EmployeeService;
@@ -32,6 +33,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     private final EmployeeMapper employeeMapper;
     private final UserMapper userMapper;
+    private final DepartmentMapper departmentMapper;
     private final PasswordEncoder passwordEncoder;
 
     /**
@@ -174,7 +176,20 @@ public class EmployeeServiceImpl implements EmployeeService {
         SysUser newUser = new SysUser();
         newUser.setUsername(username);
         newUser.setPasswordHash(passwordEncoder.encode(tempPassword)); // BCrypt加密
-        newUser.setRole("EMPLOYEE");
+
+        String targetRole = "EMPLOYEE";
+        if (request.role() != null && !request.role().isBlank()) {
+            String r = request.role().trim().toUpperCase();
+            if (List.of("SUPER_ADMIN", "DEPT_MANAGER", "EMPLOYEE", "ADMIN").contains(r)) {
+                targetRole = r;
+            }
+        }
+        // 自动识别：若该员工已经是某个部门的负责人，且选择的角色不是超级管理员，自动升为 DEPT_MANAGER
+        if (!"SUPER_ADMIN".equalsIgnoreCase(targetRole) && departmentMapper.selectByLeaderId(employeeId) != null) {
+            targetRole = "DEPT_MANAGER";
+        }
+
+        newUser.setRole(targetRole);
         newUser.setStatus(1); // 启用
         newUser.setEmployeeId(employeeId);
 

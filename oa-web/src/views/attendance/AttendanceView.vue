@@ -370,21 +370,21 @@ async function triggerPublish() {
             <div class="stats-card checked-in">
               <div class="stats-icon">👥</div>
               <div class="stats-body">
-                <span class="label">全员已签到人次</span>
+                <span class="label">{{ auth.isSuperAdmin ? '全员已签到人次' : '部门已签到人次' }}</span>
                 <span class="value">{{ adminStats.checkedIn }}</span>
               </div>
             </div>
             <div class="stats-card checked-out">
               <div class="stats-icon">📋</div>
               <div class="stats-body">
-                <span class="label">全员已签退人次</span>
+                <span class="label">{{ auth.isSuperAdmin ? '全员已签退人次' : '部门已签退人次' }}</span>
                 <span class="value">{{ adminStats.checkedOut }}</span>
               </div>
             </div>
             <div class="stats-card unchecked">
               <div class="stats-icon">⚠️</div>
               <div class="stats-body">
-                <span class="label">全员未签到人次</span>
+                <span class="label">{{ auth.isSuperAdmin ? '全员未签到人次' : '部门未签到人次' }}</span>
                 <span class="value">{{ adminStats.unchecked }}</span>
               </div>
             </div>
@@ -408,7 +408,7 @@ async function triggerPublish() {
               <el-form-item label="员工ID">
                 <el-input-number v-model="adminEmployeeId" :min="1" placeholder="员工ID" controls-position="right" style="width: 110px;" />
               </el-form-item>
-              <el-form-item label="部门ID">
+              <el-form-item v-if="auth.isSuperAdmin" label="部门ID">
                 <el-input-number v-model="adminDepartmentId" :min="1" placeholder="部门ID" controls-position="right" style="width: 110px;" />
               </el-form-item>
               <el-form-item label="状态">

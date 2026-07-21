@@ -3,8 +3,45 @@ import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getMyDepartment, type MyDepartmentResponse } from '../../api/department'
 
+import { useAuthStore } from '../../stores/auth'
+import { createAccount, type EmployeeInfo } from '../../api/employee'
+
+const auth = useAuthStore()
 const loading = ref(true)
 const data = ref<MyDepartmentResponse | null>(null)
+
+// 部门管理员开通账号
+const accountDialogVisible = ref(false)
+const currentEmp = ref<any | null>(null)
+const accountForm = ref({ username: '', role: 'EMPLOYEE' })
+const accountResult = ref('')
+const formLoading = ref(false)
+
+function openAccountModal(emp: any) {
+  currentEmp.value = emp
+  accountForm.value = { username: '', role: 'EMPLOYEE' }
+  accountResult.value = ''
+  accountDialogVisible.value = true
+}
+
+async function handleCreateAccount() {
+  if (!currentEmp.value) return
+  formLoading.value = true
+  try {
+    const password = await createAccount(currentEmp.value.id, {
+      username: accountForm.value.username || undefined,
+      role: accountForm.value.role || 'EMPLOYEE',
+    })
+    accountResult.value = password
+    ElMessage.success('账号开通成功')
+    // 重新拉取部门数据
+    data.value = await getMyDepartment()
+  } catch (err: any) {
+    ElMessage.error(err?.response?.data?.message || '开通账号失败')
+  } finally {
+    formLoading.value = false
+  }
+}
 
 onMounted(async () => {
   try {
@@ -84,15 +121,54 @@ onMounted(async () => {
                 {{ emp.name }}
                 <el-tag v-if="emp.id === data.leader?.id" size="small" type="primary" class="m-tag">负责人</el-tag>
               </div>
-              <div class="m-meta">{{ emp.position || '-' }} · {{ emp.employeeNo }}</div>
+              <div class="m-meta">{{ emp.position || '-' }} · 工号: {{ emp.employeeNo }}</div>
             </div>
             <div class="m-phone">{{ emp.phone || '-' }}</div>
+            <div v-if="auth.isDeptManager" class="m-actions">
+              <el-tag v-if="emp.hasAccount" type="success" size="small">已开通账号</el-tag>
+              <el-button v-else type="primary" link size="small" @click="openAccountModal(emp)">开通账号</el-button>
+            </div>
           </div>
         </div>
       </el-card>
     </template>
 
     <el-empty v-else description="暂无部门信息" />
+
+    <!-- ===== 部门管理员开通账号弹窗 ===== -->
+    <el-dialog v-model="accountDialogVisible" title="开通系统账号" width="440px">
+      <div v-if="!accountResult">
+        <p style="margin-bottom: 16px;">
+          为本部门成员 <strong>{{ currentEmp?.name }}</strong> 开通系统账号
+        </p>
+        <el-form :model="accountForm" label-width="90px">
+          <el-form-item label="用户名">
+            <el-input v-model="accountForm.username" placeholder="不填则默认使用工号" />
+          </el-form-item>
+          <el-form-item label="系统角色" required>
+            <el-select v-model="accountForm.role" style="width: 100%">
+              <el-option label="普通员工 (EMPLOYEE)" value="EMPLOYEE" />
+              <el-option label="部门管理员 (DEPT_MANAGER)" value="DEPT_MANAGER" />
+            </el-select>
+          </el-form-item>
+        </el-form>
+      </div>
+      <div v-else class="result-box">
+        <p>✅ 账号开通成功！</p>
+        <p>初始密码为：</p>
+        <div class="password-display" style="font-size: 20px; font-weight: bold; color: #409eff; text-align: center; margin: 12px 0;">{{ accountResult }}</div>
+        <el-alert title="请告知员工并提醒其及时修改初始密码" type="warning" :closable="false" show-icon />
+      </div>
+      <template #footer>
+        <template v-if="!accountResult">
+          <el-button @click="accountDialogVisible = false">取消</el-button>
+          <el-button type="primary" :loading="formLoading" @click="handleCreateAccount">确认开通</el-button>
+        </template>
+        <template v-else>
+          <el-button @click="accountDialogVisible = false; accountResult = ''">关闭</el-button>
+        </template>
+      </template>
+    </el-dialog>
   </div>
 </template>
 

@@ -88,6 +88,12 @@
         WHERE id = #{id}
     </update>
 
+    <update id="updateRole">
+        UPDATE sys_user
+        SET role = #{role}
+        WHERE id = #{id}
+    </update>
+
     <insert id="insertUser" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO sys_user (username, password_hash, role, status, employee_id)
         VALUES (#{username}, #{passwordHash}, #{role}, #{status}, #{employeeId})

@@ -13,6 +13,7 @@ public interface DepartmentMapper {
     long countPage(@Param("keyword") String keyword);
     SysDepartment selectById(@Param("id") Long id);
     SysDepartment selectByCode(@Param("code") String code);
+    SysDepartment selectByLeaderId(@Param("leaderId") Long leaderId);
     int insert(SysDepartment dept);
     int update(SysDepartment dept);
     int updateStatus(@Param("id") Long id, @Param("status") Integer status);

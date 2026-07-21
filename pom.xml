@@ -20,13 +20,16 @@
 
     <!-- 聚合子模块 -->
     <modules>
-        <module>oa-business-service</module>
+        <module>oa-attendance-service</module>
         <module>identity-service</module>
         <module>oa-gateway</module>
+        <module>oa-content-service</module>
     </modules>
 
     <properties>
         <java.version>21</java.version>
+        <elasticsearch.version>8.10.2</elasticsearch.version>
+        <elasticsearch-java.version>8.10.2</elasticsearch-java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -34,6 +37,17 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- Lock Elasticsearch Client to 8.10.2 to override Spring Boot default 8.18.8 -->
+            <dependency>
+                <groupId>co.elastic.clients</groupId>
+                <artifactId>elasticsearch-java</artifactId>
+                <version>8.10.2</version>
+            </dependency>
+            <dependency>
+                <groupId>org.elasticsearch.client</groupId>
+                <artifactId>elasticsearch-rest-client</artifactId>
+                <version>8.10.2</version>
+            </dependency>
             <!-- Spring Cloud Dependencies -->
             <dependency>
                 <groupId>org.springframework.cloud</groupId>

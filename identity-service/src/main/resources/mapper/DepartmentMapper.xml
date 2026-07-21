@@ -53,6 +53,10 @@
         <include refid="selectWithLeader"/> WHERE d.code = #{code}
     </select>
 
+    <select id="selectByLeaderId" resultMap="DepartmentMap">
+        <include refid="selectWithLeader"/> WHERE d.leader_id = #{leaderId} LIMIT 1
+    </select>
+
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO sys_department (code, name, leader_id, status, sort)
         VALUES (#{code}, #{name}, #{leaderId}, #{status}, #{sort})

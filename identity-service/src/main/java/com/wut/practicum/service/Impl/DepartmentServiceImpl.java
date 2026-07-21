@@ -1,11 +1,13 @@
-package com.wut.practicum.service.Impl;
+package com.wut.practicum.service.impl;
 
 import com.wut.practicum.common.BusinessException;
 import com.wut.practicum.dto.*;
 import com.wut.practicum.entity.OaEmployee;
 import com.wut.practicum.entity.SysDepartment;
+import com.wut.practicum.entity.SysUser;
 import com.wut.practicum.mapper.DepartmentMapper;
 import com.wut.practicum.mapper.EmployeeMapper;
+import com.wut.practicum.mapper.UserMapper;
 import com.wut.practicum.service.DepartmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +25,7 @@ public class DepartmentServiceImpl implements DepartmentService {
 
     private final DepartmentMapper departmentMapper;
     private final EmployeeMapper employeeMapper;
+    private final UserMapper userMapper;
 
     @Override
     public MyDepartmentResponse getMyDepartment(Long employeeId) {
@@ -96,6 +99,11 @@ public class DepartmentServiceImpl implements DepartmentService {
         dept.setSort(request.sort() != null ? request.sort() : 0);
         dept.setStatus(1);
         departmentMapper.insert(dept);
+
+        if (request.leaderId() != null) {
+            updateUserRoleToDeptManager(request.leaderId());
+        }
+
         log.info("新增部门: id={}, name={}", dept.getId(), dept.getName());
         return DepartmentResponse.from(dept);
     }
@@ -105,13 +113,51 @@ public class DepartmentServiceImpl implements DepartmentService {
     public DepartmentResponse update(Long id, DepartmentUpdateRequest request) {
         SysDepartment dept = departmentMapper.selectById(id);
         if (dept == null) throw new BusinessException(3001, HttpStatus.NOT_FOUND, "部门不存在");
+        
+        Long oldLeaderId = dept.getLeaderId();
+        Long newLeaderId = request.leaderId();
+
         if (request.code() != null) dept.setCode(request.code());
         if (request.name() != null) dept.setName(request.name());
         if (request.leaderId() != null) dept.setLeaderId(request.leaderId());
         if (request.sort() != null) dept.setSort(request.sort());
         departmentMapper.update(dept);
-        log.info("更新部门: id={}", id);
+
+        if (newLeaderId != null && !newLeaderId.equals(oldLeaderId)) {
+            // 1. 新负责人升级为 DEPT_MANAGER
+            updateUserRoleToDeptManager(newLeaderId);
+
+            // 2. 旧负责人若不再担任任何部门负责人，角色重置为 EMPLOYEE
+            if (oldLeaderId != null) {
+                checkAndResetOldLeaderRole(oldLeaderId);
+            }
+        }
+
+        log.info("更新部门: id={}, leaderId={}", id, newLeaderId);
         return DepartmentResponse.from(departmentMapper.selectById(id));
+    }
+
+    private void updateUserRoleToDeptManager(Long employeeId) {
+        if (employeeId == null) return;
+        SysUser user = userMapper.selectByEmployeeId(employeeId);
+        if (user != null) {
+            if (!"SUPER_ADMIN".equalsIgnoreCase(user.getRole())) {
+                userMapper.updateRole(user.getId(), "DEPT_MANAGER");
+                log.info("设置部门负责人成功，已自动升级关联用户(userId={}, employeeId={})的角色为 DEPT_MANAGER", user.getId(), employeeId);
+            }
+        }
+    }
+
+    private void checkAndResetOldLeaderRole(Long oldLeaderId) {
+        if (oldLeaderId == null) return;
+        SysDepartment deptAsLeader = departmentMapper.selectByLeaderId(oldLeaderId);
+        if (deptAsLeader == null) {
+            SysUser user = userMapper.selectByEmployeeId(oldLeaderId);
+            if (user != null && "DEPT_MANAGER".equalsIgnoreCase(user.getRole())) {
+                userMapper.updateRole(user.getId(), "EMPLOYEE");
+                log.info("旧负责人(employeeId={})不再担任任何部门负责人，角色重置为 EMPLOYEE", oldLeaderId);
+            }
+        }
     }
 
     @Override

@@ -14,6 +14,7 @@ export interface EmployeeInfo {
   status: number        // 1-在职 0-离职
   hasAccount: boolean   // 是否已开通系统账号
   userId: number | null // 关联的系统用户ID（已开通账号时有值）
+  role: string | null   // 系统账号角色: SUPER_ADMIN / DEPT_MANAGER / EMPLOYEE
   hireDate: string | null
   createTime: string
   updateTime: string
@@ -51,6 +52,7 @@ export interface UpdateEmployeeRequest {
 /** 开通账号请求参数 */
 export interface CreateAccountRequest {
   username?: string
+  role?: string
 }
 
 // ---- API 函数 ----
