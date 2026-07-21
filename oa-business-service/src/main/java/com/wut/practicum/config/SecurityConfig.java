@@ -10,8 +10,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -29,9 +27,8 @@ public class SecurityConfig {
         return http.csrf(csrf -> csrf.disable()).cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/login", "/v3/api-docs/**", "/swagger-ui/**", "/actuator/health", "/internal/**").permitAll()
-                        .requestMatchers("/api/employees/profile", "/api/departments/my").authenticated()
-                        .requestMatchers("/api/admin/**", "/api/employees/**", "/api/departments/**").hasRole("ADMIN")
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/actuator/health", "/actuator/**").permitAll()
+                        .requestMatchers("/api/attendance/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .exceptionHandling(errors -> errors
                         .authenticationEntryPoint((request, response, ex) -> writeError(response, mapper, 401, "未登录或登录已过期"))
@@ -51,9 +48,6 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
-
-    @Bean
-    PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
 
     private static void writeError(HttpServletResponse response, ObjectMapper mapper, int status, String message) throws java.io.IOException {
         response.setStatus(status);

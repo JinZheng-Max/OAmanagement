@@ -7,7 +7,7 @@ import com.wut.practicum.entity.SysUser;
 import com.wut.practicum.mapper.UserMapper;
 import com.wut.practicum.security.JwtService;
 import com.wut.practicum.security.SessionStore;
-import com.wut.practicum.service.impl.UserServiceImpl;
+import com.wut.practicum.service.Impl.UserServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;

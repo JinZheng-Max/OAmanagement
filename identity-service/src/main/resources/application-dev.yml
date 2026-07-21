@@ -2,4 +2,17 @@ spring:
   datasource:
     url: ${MYSQL_URL:jdbc:mysql://localhost:3306/oa_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
     username: ${MYSQL_USERNAME:root}
-    password: ${MYSQL_PASSWORD}
+    password: ${MYSQL_PASSWORD:64526691aA}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+oa:
+  bootstrap:
+    admin:
+      username: ${OA_BOOTSTRAP_ADMIN_USERNAME:admin}
+      password: ${OA_BOOTSTRAP_ADMIN_PASSWORD:admin123}
+  security:
+    jwt-secret: ${JWT_SECRET:daimeiyong-daozhang-cancandao-zzdq-zqmeisuzhi-huaienfuzhe}

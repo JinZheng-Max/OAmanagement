@@ -8,3 +8,4 @@ oa-web/playwright-report/
 *.log
 .idea/
 .vscode/
+sql/update.sql
