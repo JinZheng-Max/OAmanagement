@@ -171,7 +171,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- Other Modules Cards -->
-      <div class="other-cards">
+      <div class="other-cards" style="cursor:pointer;" @click="$router.push('/employees')">
         <div class="info-card">
           <div class="card-icon">👥</div>
           <div class="card-body">
@@ -183,11 +183,14 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="info-card coming-soon">
+        <div class="info-card" style="cursor:pointer;" @click="$router.push('/departments')">
           <div class="card-icon">🏢</div>
           <div class="card-body">
-            <h3>部门管理 <el-tag size="small" type="info">即将上线</el-tag></h3>
-            <p>集中式管理组织架构，直观树形层级展示。</p>
+            <h3>部门管理</h3>
+            <p>集中式管理组织架构，树形层级直观展示。</p>
+            <el-button type="primary" size="small" link style="margin-top:8px;">
+              立即进入 &gt;
+            </el-button>
           </div>
         </div>
 

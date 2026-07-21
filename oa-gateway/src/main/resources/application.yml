@@ -34,15 +34,15 @@ spring:
                       maxAge: 3600
                 routes:
                   - id: identity-service
-                    uri: lb://identity-service
+                    uri: http://localhost:8851
                     predicates:
-                      - Path=/api/auth/**,/api/identity/**,/api/employees/**
+                      - Path=/api/auth/**,/api/identity/**,/api/employees/**,/api/departments/**
                   - id: oa-business-service
-                    uri: lb://oa-business-service
+                    uri: http://localhost:8849
                     predicates:
                       - Path=/api/attendance/**,/api/leaves/**,/api/contents/**
                   - id: intelligence-service
-                    uri: lb://intelligence-service
+                    uri: http://localhost:8852
                     predicates:
                       - Path=/api/search/**,/api/ai/**
   config:
