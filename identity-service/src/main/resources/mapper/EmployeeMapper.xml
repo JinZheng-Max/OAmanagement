@@ -111,8 +111,8 @@
         keyProperty="id" 表示把自增ID 赋值给 employee 对象的 id 属性
     -->
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO oa_employee (employee_no, name, department_id, position, phone, status, hire_date)
-        VALUES (#{employeeNo}, #{name}, #{departmentId}, #{position}, #{phone}, #{status}, #{hireDate})
+        INSERT INTO oa_employee (employee_no, name, department_id, position, phone, id_number, email, status, hire_date, work_years)
+        VALUES (#{employeeNo}, #{name}, #{departmentId}, #{position}, #{phone}, #{idNumber}, #{email}, #{status}, #{hireDate}, #{workYears})
     </insert>
 
     <!--
@@ -126,8 +126,11 @@
             <if test="departmentId != null">department_id = #{departmentId},</if>
             <if test="position != null">position = #{position},</if>
             <if test="phone != null">phone = #{phone},</if>
+            <if test="idNumber != null">id_number = #{idNumber},</if>
+            <if test="email != null">email = #{email},</if>
             <if test="status != null">status = #{status},</if>
             <if test="hireDate != null">hire_date = #{hireDate},</if>
+            <if test="workYears != null">work_years = #{workYears},</if>
             update_time = NOW()
         </set>
         WHERE id = #{id}

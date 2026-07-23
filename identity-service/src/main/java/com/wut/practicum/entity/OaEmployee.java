@@ -29,6 +29,12 @@ public class OaEmployee {
     @Schema(description = "联系手机")
     private String phone;
 
+    @Schema(description = "身份证号（18位）")
+    private String idNumber;
+
+    @Schema(description = "电子邮箱")
+    private String email;
+
     @Schema(description = "在职状态: 1-在职 0-离职")
     private Integer status;
 
@@ -43,6 +49,9 @@ public class OaEmployee {
 
     @Schema(description = "入职日期")
     private LocalDate hireDate;
+
+    @Schema(description = "工作年限（年）")
+    private java.math.BigDecimal workYears;
 
     @Schema(description = "创建时间")
     private LocalDateTime createTime;

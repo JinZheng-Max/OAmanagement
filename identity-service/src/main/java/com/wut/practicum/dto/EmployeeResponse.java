@@ -21,11 +21,14 @@ public record EmployeeResponse(
         @Schema(description = "所属部门名称") String departmentName,
         @Schema(description = "职位") String position,
         @Schema(description = "联系手机") String phone,
+        @Schema(description = "身份证号") String idNumber,
+        @Schema(description = "电子邮箱") String email,
         @Schema(description = "在职状态: 1-在职 0-离职") Integer status,
         @Schema(description = "是否已开通系统账号") Boolean hasAccount,
         @Schema(description = "关联的系统用户ID（已开通账号时有效）") Long userId,
         @Schema(description = "系统账号角色: SUPER_ADMIN / DEPT_MANAGER / EMPLOYEE") String role,
         @Schema(description = "入职日期") LocalDate hireDate,
+        @Schema(description = "工作年限（年）") java.math.BigDecimal workYears,
         @Schema(description = "创建时间") LocalDateTime createTime,
         @Schema(description = "更新时间") LocalDateTime updateTime) {
 
@@ -40,10 +43,13 @@ public record EmployeeResponse(
         return new EmployeeResponse(
                 emp.getId(), emp.getEmployeeNo(), emp.getName(),
                 emp.getDepartmentId(), emp.getDepartmentName(),
-                emp.getPosition(), emp.getPhone(), emp.getStatus(),
+                emp.getPosition(), emp.getPhone(),
+                emp.getIdNumber(), emp.getEmail(),
+                emp.getStatus(),
                 emp.getHasAccount() != null && emp.getHasAccount(),
                 emp.getUserId(), emp.getRole(),
-                emp.getHireDate(), emp.getCreateTime(), emp.getUpdateTime()
+                emp.getHireDate(), emp.getWorkYears(),
+                emp.getCreateTime(), emp.getUpdateTime()
         );
     }
 }

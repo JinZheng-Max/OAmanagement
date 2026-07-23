@@ -313,7 +313,10 @@ const newEmployee = ref({
   name: '',
   position: '',
   phone: '',
+  idNumber: '',
+  email: '',
   hireDate: '',
+  workYears: null,
   departmentId: null,
   status: 1
 })
@@ -410,11 +413,15 @@ const action = async (type, data) => {
       ElMessage.info('出于审计安全考虑，员工档案暂不支持直接删除')
     } else if (type === 'edit') {
       editingEmployee.value = { ...data }
-      newEmployee.value = { 
-        name: data.name, 
-        position: data.position, 
-        phone: data.phone, 
-        hireDate: data.hireDate || '', 
+      newEmployee.value = {
+        employeeNo: data.employeeNo || "",
+        name: data.name,
+        position: data.position,
+        phone: data.phone,
+        idNumber: data.idNumber || "",
+        email: data.email || "",
+        hireDate: data.hireDate || "",
+        workYears: data.workYears,
         departmentId: data.departmentId,
         status: data.status !== undefined ? data.status : 1
       }
@@ -437,7 +444,7 @@ const setDeptAdmin = async (employee) => {
 
 const handleCloseEmpDialog = () => {
   showAddEmpDialog.value = false
-  newEmployee.value = { employeeNo: '', name: '', position: '', phone: '', hireDate: '', departmentId: null, status: 1 }
+  newEmployee.value = { employeeNo: "", name: "", position: "", phone: "", idNumber: "", email: "", hireDate: "", workYears: null, departmentId: null, status: 1 }
   editingEmployee.value = null
 }
 

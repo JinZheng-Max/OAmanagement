@@ -92,37 +92,29 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     @Transactional
     public EmployeeResponse create(EmployeeCreateRequest request) {
-        // 工号统一 Smart 开头并自动生成
+        // 工号唯一性校验
         String empNo = request.employeeNo();
-        if (empNo == null || empNo.isBlank()) {
-            empNo = generateAutoEmployeeNo();
-        } else if (!empNo.toUpperCase().startsWith("SMART")) {
-            empNo = "Smart" + empNo;
+        if (employeeMapper.selectByEmployeeNo(empNo) != null) {
+            throw new BusinessException(2006, HttpStatus.BAD_REQUEST, "工号已存在: " + empNo);
         }
 
-        OaEmployee exist = employeeMapper.selectByEmployeeNo(empNo);
-        if (exist != null) {
-            empNo = generateAutoEmployeeNo();
-        }
-
-        // 2. 创建实体对象，把请求数据复制进去
         OaEmployee emp = new OaEmployee();
         emp.setEmployeeNo(empNo);
         emp.setName(request.name());
         emp.setDepartmentId(request.departmentId());
         emp.setPosition(request.position());
         emp.setPhone(request.phone());
+        emp.setIdNumber(request.idNumber());
+        emp.setEmail(request.email());
 
-        // 入职日期：如果没填则默认为当天
         if (request.hireDate() != null && !request.hireDate().isBlank()) {
             emp.setHireDate(LocalDate.parse(request.hireDate()));
         } else {
             emp.setHireDate(LocalDate.now());
         }
+        emp.setWorkYears(request.workYears());
+        emp.setStatus(1);
 
-        emp.setStatus(1); // 默认为在职
-
-        // 3. 插入数据库
         employeeMapper.insert(emp);
 
         log.info("新增员工: id={}, name={}, employeeNo={}", emp.getId(), emp.getName(), emp.getEmployeeNo());
@@ -158,10 +150,13 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (request.departmentId() != null) emp.setDepartmentId(request.departmentId());
         if (request.position() != null) emp.setPosition(request.position());
         if (request.phone() != null) emp.setPhone(request.phone());
+        if (request.idNumber() != null) emp.setIdNumber(request.idNumber());
+        if (request.email() != null) emp.setEmail(request.email());
         if (request.status() != null) emp.setStatus(request.status());
         if (request.hireDate() != null && !request.hireDate().isBlank()) {
             emp.setHireDate(LocalDate.parse(request.hireDate()));
         }
+        if (request.workYears() != null) emp.setWorkYears(request.workYears());
 
         // 3. 更新数据库
         employeeMapper.update(emp);
@@ -368,7 +363,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                         null, name.trim(), deptId,
                         position != null && !position.isBlank() ? position.trim() : null,
                         phone != null && !phone.isBlank() ? phone.trim() : null,
-                        null
+                        null, null, null, null
                 );
                 EmployeeResponse created = create(req);
 

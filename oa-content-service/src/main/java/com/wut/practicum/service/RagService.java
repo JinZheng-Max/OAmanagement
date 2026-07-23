@@ -19,6 +19,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import reactor.core.publisher.Flux;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.*;
@@ -232,7 +233,9 @@ public class RagService {
             chromaClient.addChunks(vectorIds, chunkContents, embeddings, metadatas);
             log.info("Chroma写入完成: sourceId={}, chunks={}", sourceId, chunks.size());
 
-            // 8. 保存分片记录到数据库（设置从Chroma写入成功后的ID）
+            // 8. 先删除旧分片再插入新分片（防止唯一键冲突）
+            aiSourceChunkMapper.deleteBySourceId(sourceId);
+
             for (int i = 0; i < chunkRecords.size(); i++) {
                 chunkRecords.get(i).setVectorKey(vectorIds.get(i));
             }
@@ -401,6 +404,82 @@ public class RagService {
         log.info("================== [RAG 问答流程结束] ==================");
         return new AnswerResult(question, answer, sources);
     }
+
+    /**
+     * AI 流式问答 - 结构化 Prompt + SSE 流式输出
+     */
+    public Flux<RagService.StreamEvent> askStream(String question, Long userId, String role, Long departmentId) {
+        long start = System.currentTimeMillis();
+        // 1. 生成问题向量
+        List<Double> queryEmbedding = embeddingClient.embedQuery(question);
+        // 2. Chroma 检索
+        Map<String, Object> where = buildChromaWhere(role, departmentId);
+        ChromaClient.ChromaQueryResult chromaResult = chromaClient.query(
+                queryEmbedding, where, ragConfig.getChroma().getRetrieveCount());
+
+        if (chromaResult == null || chromaResult.documents().isEmpty()) {
+            saveSession(userId, role, departmentId, question, "知识库中暂无相关内容。", "ANSWERED");
+            return Flux.just(new StreamEvent("answer", "知识库中暂无相关内容。"));
+        }
+
+        // 3. 构建鉴权上下文
+        String context = buildAuthorizedContext(chromaResult, role, departmentId);
+        if (context.isEmpty()) {
+            saveSession(userId, role, departmentId, question, "知识库中暂无相关内容。", "ANSWERED");
+            return Flux.just(new StreamEvent("answer", "知识库中暂无相关内容。"));
+        }
+
+        // 4. 流式调用 DeepSeek
+        Flux<String> contentStream = deepSeekClient.chatStream(question, context, role, departmentId);
+        StringBuilder fullAnswer = new StringBuilder();
+
+        Flux<StreamEvent> answerStream = contentStream.map(chunk -> {
+            fullAnswer.append(chunk);
+            return new StreamEvent("chunk", chunk);
+        });
+
+        // 5. 流结束后保存会话
+        return answerStream.concatWith(Flux.defer(() -> {
+            long elapsed = System.currentTimeMillis() - start;
+            saveSession(userId, role, departmentId, question, fullAnswer.toString(), "ANSWERED");
+            log.info("流式问答完成: userId={}, elapsed={}ms", userId, elapsed);
+            return Flux.just(new StreamEvent("done", ""));
+        }));
+    }
+
+    /** 构建鉴权后的上下文（复用逻辑） */
+    private String buildAuthorizedContext(ChromaClient.ChromaQueryResult chromaResult, String role, Long departmentId) {
+        Set<Long> chromaSourceIds = new HashSet<>();
+        for (Map<String, Object> meta : chromaResult.metadatas()) {
+            if (meta != null && meta.get("source_id") != null)
+                chromaSourceIds.add(((Number) meta.get("source_id")).longValue());
+        }
+        int roleLevel = getRoleLevel(role);
+        List<OaAiSource> authSources = aiSourceMapper.selectAuthorizedSources(
+                new ArrayList<>(chromaSourceIds), role, roleLevel, departmentId);
+        Set<Long> authIds = new HashSet<>();
+        Map<Long, OaAiSource> sourceMap = new HashMap<>();
+        for (OaAiSource s : authSources) { authIds.add(s.getId()); sourceMap.put(s.getId(), s); }
+
+        StringBuilder ctx = new StringBuilder();
+        int si = 0;
+        for (int i = 0; i < chromaResult.documents().size() && si < 8; i++) {
+            if (chromaResult.metadatas().get(i) == null) continue;
+            Long sid = chromaResult.metadatas().get(i).get("source_id") != null ?
+                    ((Number) chromaResult.metadatas().get(i).get("source_id")).longValue() : null;
+            if (sid == null || !authIds.contains(sid)) continue;
+            si++;
+            String label = "S" + si;
+            ctx.append("[").append(label).append("]\n");
+            OaAiSource src = sourceMap.get(sid);
+            if (src != null) ctx.append("文件：").append(src.getTitle()).append("\n");
+            ctx.append("内容：").append(chromaResult.documents().get(i)).append("\n\n");
+        }
+        return ctx.toString();
+    }
+
+    /** 流式事件 */
+    public record StreamEvent(String type, String data) {}
 
     /** 构建Chroma查询的权限过滤条件 */
     private Map<String, Object> buildChromaWhere(String role, Long departmentId) {

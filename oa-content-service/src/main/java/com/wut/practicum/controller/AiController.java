@@ -184,6 +184,34 @@ public class AiController {
         return ApiResult.success(result);
     }
 
+    /**
+     * AI 流式问答 - SSE 流式输出
+     * 使用结构化 Prompt 工程，返回 Server-Sent Events 流
+     */
+    @PostMapping(value = "/chat-stream", produces = "text/event-stream")
+    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter chatStream(@RequestBody Map<String, String> body) {
+        String question = body.getOrDefault("question", "");
+        if (question.isBlank()) {
+            org.springframework.web.servlet.mvc.method.annotation.SseEmitter err = new org.springframework.web.servlet.mvc.method.annotation.SseEmitter();
+            try { err.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event().name("error").data("问题不能为空")); err.complete(); } catch (Exception ex) {}
+            return err;
+        }
+        JwtService.UserPrincipal user = getCurrentUser();
+        Long deptId = getDepartmentId(user);
+
+        org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter = new org.springframework.web.servlet.mvc.method.annotation.SseEmitter(180000L);
+        ragService.askStream(question, user.userId(), user.role(), deptId)
+                .subscribe(
+                    event -> {
+                        try { emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event().name(event.type()).data(event.data())); }
+                        catch (Exception e) { emitter.completeWithError(e); }
+                    },
+                    emitter::completeWithError,
+                    emitter::complete
+                );
+        return emitter;
+    }
+
     // ========================================================================
     // 学习计划
     // ========================================================================
