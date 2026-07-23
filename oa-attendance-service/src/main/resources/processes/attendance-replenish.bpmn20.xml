@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://www.wut.practicum/attendance">
+
+    <process id="attendanceReplenishmentProcess" name="考勤补签审批流程" isExecutable="true">
+
+        <!-- 1. 开始事件 -->
+        <startEvent id="startEvent" name="发起补签申请"/>
+
+        <sequenceFlow id="flow1" sourceRef="startEvent" targetRef="roleGateway"/>
+
+        <!-- 2. 排他网关：判断申请人角色 -->
+        <exclusiveGateway id="roleGateway" name="判断申请人角色"/>
+
+        <!-- 普通员工补签流转至部门经理审核 -->
+        <sequenceFlow id="flowToDeptManager" sourceRef="roleGateway" targetRef="deptManagerTask">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${applicantRole != 'DEPT_MANAGER'}]]></conditionExpression>
+        </sequenceFlow>
+
+        <!-- 部门经理个人补签直接升级至最高管理员终审 -->
+        <sequenceFlow id="flowToSuperAdminDirect" sourceRef="roleGateway" targetRef="superAdminTask">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${applicantRole == 'DEPT_MANAGER'}]]></conditionExpression>
+        </sequenceFlow>
+
+        <!-- 3. 用户任务：部门经理一级审批 -->
+        <userTask id="deptManagerTask" name="部门经理一级审批" flowable:candidateGroups="DEPT_MANAGER"/>
+
+        <sequenceFlow id="flowFromDept" sourceRef="deptManagerTask" targetRef="deptActionGateway"/>
+
+        <!-- 4. 部门经理审批指令排他网关 -->
+        <exclusiveGateway id="deptActionGateway" name="部门经理处理路由"/>
+
+        <!-- 同意 -->
+        <sequenceFlow id="flowDeptApprove" sourceRef="deptActionGateway" targetRef="approveServiceTask">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${action == 'APPROVED'}]]></conditionExpression>
+        </sequenceFlow>
+
+        <!-- 驳回 -->
+        <sequenceFlow id="flowDeptReject" sourceRef="deptActionGateway" targetRef="rejectServiceTask">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${action == 'REJECTED'}]]></conditionExpression>
+        </sequenceFlow>
+
+        <!-- 上报高管批示 -->
+        <sequenceFlow id="flowDeptEscalate" sourceRef="deptActionGateway" targetRef="superAdminTask">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${action == 'ESCALATE'}]]></conditionExpression>
+        </sequenceFlow>
+
+        <!-- 5. 用户任务：最高管理员终审 -->
+        <userTask id="superAdminTask" name="最高管理员终审" flowable:candidateGroups="SUPER_ADMIN"/>
+
+        <sequenceFlow id="flowFromSuperAdmin" sourceRef="superAdminTask" targetRef="superActionGateway"/>
+
+        <!-- 6. 最高管理员审批指令排他网关 -->
+        <exclusiveGateway id="superActionGateway" name="最高管理员处理路由"/>
+
+        <!-- 同意 -->
+        <sequenceFlow id="flowSuperApprove" sourceRef="superActionGateway" targetRef="approveServiceTask">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${action == 'APPROVED'}]]></conditionExpression>
+        </sequenceFlow>
+
+        <!-- 驳回 -->
+        <sequenceFlow id="flowSuperReject" sourceRef="superActionGateway" targetRef="rejectServiceTask">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${action == 'REJECTED'}]]></conditionExpression>
+        </sequenceFlow>
+
+        <!-- 7. 服务任务：自动执行补签同意 Delegate 回调 -->
+        <serviceTask id="approveServiceTask" name="自动执行补签同意回调"
+                     flowable:delegateExpression="${attendanceApproveDelegate}"/>
+
+        <sequenceFlow id="flowEndApprove" sourceRef="approveServiceTask" targetRef="endApproved"/>
+
+        <!-- 8. 服务任务：自动执行补签驳回 Delegate 回调 -->
+        <serviceTask id="rejectServiceTask" name="自动执行补签驳回回调"
+                     flowable:delegateExpression="${attendanceRejectDelegate}"/>
+
+        <sequenceFlow id="flowEndReject" sourceRef="rejectServiceTask" targetRef="endRejected"/>
+
+        <!-- 9. 结束事件 -->
+        <endEvent id="endApproved" name="补签成功结束"/>
+        <endEvent id="endRejected" name="补签驳回结束"/>
+
+    </process>
+
+</definitions>

@@ -41,6 +41,9 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
 
+    private final org.flowable.engine.RuntimeService runtimeService;
+    private final org.flowable.engine.TaskService taskService;
+
     private static final ZoneId ZONE_SHANGHAI = ZoneId.of("Asia/Shanghai");
 
     @jakarta.annotation.PostConstruct
@@ -567,7 +570,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         return created;
     }
 
-    // ================= 补签申请与审批 =================
+    // ================= 补签申请与审批 (Flowable 工作流引擎驱动) =================
 
     @Override
     @Transactional
@@ -580,17 +583,51 @@ public class AttendanceServiceImpl implements AttendanceService {
             throw new BusinessException(403, HttpStatus.FORBIDDEN, "只能为自己的考勤发起补签申请");
         }
         if ("PENDING".equals(att.getReplenishStatus())) {
-            throw new BusinessException(400, HttpStatus.BAD_REQUEST, "补签申请已在审批中，请勿重复发起");
+            throw new BusinessException(400, HttpStatus.BAD_REQUEST, "补签申请已在 Flowable 审批流中，请勿重复发起");
         }
         if (reason == null || reason.isBlank()) {
             throw new BusinessException(400, HttpStatus.BAD_REQUEST, "补签原因不能为空");
         }
 
+        // 1. 获取申请人角色 (如判断是否为部门经理)
+        String applicantRole = "EMPLOYEE";
+        try {
+            ApiResult<EmployeeResponse> empRes = employeeClient.getById(employeeId);
+            if (empRes != null && empRes.data() != null) {
+                // 如果是部门领导，标为 DEPT_MANAGER
+                if ("部门经理".equals(empRes.data().position()) || "经理".equals(empRes.data().position())) {
+                    applicantRole = "DEPT_MANAGER";
+                }
+            }
+        } catch (Exception e) {
+            log.warn("applyReplenishment: 获取申请人员工信息失败, employeeId={}", employeeId, e);
+        }
+
+        // 2. 更新基础表为待审批状态
         att.setReplenishStatus("PENDING");
         att.setReplenishReason(reason.trim());
         att.setUpdateTime(LocalDateTime.now(ZONE_SHANGHAI));
-
         attendanceMapper.update(att);
+
+        // 3. 启动 Flowable 工作流实例
+        try {
+            Map<String, Object> variables = new HashMap<>();
+            variables.put("attendanceId", attendanceId);
+            variables.put("applicantId", employeeId);
+            variables.put("applicantRole", applicantRole);
+            variables.put("departmentId", att.getDepartmentId());
+            variables.put("reason", reason.trim());
+
+            org.flowable.engine.runtime.ProcessInstance pi = runtimeService.startProcessInstanceByKey(
+                    "attendanceReplenishmentProcess",
+                    String.valueOf(attendanceId),
+                    variables
+            );
+            log.info("Flowable 考勤补签流程成功启动: processInstanceId={}, businessKey={}", pi.getId(), attendanceId);
+        } catch (Exception e) {
+            log.error("Flowable 启动补签流程实例失败, attendanceId={}", attendanceId, e);
+        }
+
         clearPersonalCache(employeeId);
         clearAdminCache();
 
@@ -608,43 +645,54 @@ public class AttendanceServiceImpl implements AttendanceService {
             throw new BusinessException(400, HttpStatus.BAD_REQUEST, "该记录当前不在待补签状态");
         }
 
-        // 核心规则：部门经理发起的补签，只能由超级管理员审批！
-        boolean targetIsDeptManager = false;
         if (approverEmployeeId != null && approverEmployeeId.equals(att.getEmployeeId())) {
-            // 自批拦截
             throw new BusinessException(403, HttpStatus.FORBIDDEN, "权限不足：不能审批自己的补签申请");
-        }
-
-        // 检查申请人是否为部门经理（由客户端 / 部门库获取）
-        ApiResult<EmployeeResponse> targetEmpRes = employeeClient.getById(att.getEmployeeId());
-        if (targetEmpRes != null && targetEmpRes.data() != null) {
-            // 若包含经理标识，必须为 SUPER_ADMIN 才能批
         }
 
         if (!"SUPER_ADMIN".equalsIgnoreCase(approverRole) && !"DEPT_MANAGER".equalsIgnoreCase(approverRole)) {
             throw new BusinessException(403, HttpStatus.FORBIDDEN, "权限不足：只有管理员或部门经理可审批补签");
         }
 
-        // 如果审批者是 DEPT_MANAGER，但申请人也是该部门负责人/经理，拒绝自批或越权审批
-        if ("DEPT_MANAGER".equalsIgnoreCase(approverRole)) {
-            if (approverEmployeeId != null && approverEmployeeId.equals(att.getEmployeeId())) {
-                throw new BusinessException(403, HttpStatus.FORBIDDEN, "部门经理的补签只能由超级管理员审批！");
-            }
+        // 1. 查询 Flowable 当前待办任务 Task
+        org.flowable.task.api.Task currentTask = null;
+        try {
+            currentTask = taskService.createTaskQuery()
+                    .processInstanceBusinessKey(String.valueOf(attendanceId))
+                    .singleResult();
+        } catch (Exception e) {
+            log.warn("Flowable 查询 Task 失败: businessKey={}", attendanceId, e);
         }
 
-        LocalDateTime now = LocalDateTime.now(ZONE_SHANGHAI);
-        if (approved) {
-            att.setReplenishStatus("APPROVED");
-            att.setStatus("REPLENISHED");
+        String action = approved ? "APPROVED" : "REJECTED";
+        if (comment != null && (comment.contains("呈报") || comment.contains("上报高管"))) {
+            action = "ESCALATE";
+        }
+
+        // 2. 推动 Flowable 工作流任务完成
+        if (currentTask != null) {
+            Map<String, Object> taskVars = new HashMap<>();
+            taskVars.put("action", action);
+            taskVars.put("approverUserId", approverUserId);
+            taskVars.put("approveComment", comment);
+
+            taskService.complete(currentTask.getId(), taskVars);
+            log.info("Flowable 考勤补签 Task 完成: taskId={}, action={}", currentTask.getId(), action);
         } else {
-            att.setReplenishStatus("REJECTED");
+            // 降级兜底逻辑（若流程死锁或无任务时回落直接更新）
+            LocalDateTime now = LocalDateTime.now(ZONE_SHANGHAI);
+            if (approved) {
+                att.setReplenishStatus("APPROVED");
+                att.setStatus("REPLENISHED");
+            } else {
+                att.setReplenishStatus("REJECTED");
+            }
+            att.setApproverId(approverUserId);
+            att.setApproveTime(now);
+            att.setApproveComment(comment != null ? comment.trim() : "");
+            att.setUpdateTime(now);
+            attendanceMapper.update(att);
         }
-        att.setApproverId(approverUserId);
-        att.setApproveTime(now);
-        att.setApproveComment(comment != null ? comment.trim() : "");
-        att.setUpdateTime(now);
 
-        attendanceMapper.update(att);
         clearPersonalCache(att.getEmployeeId());
         clearAdminCache();
 

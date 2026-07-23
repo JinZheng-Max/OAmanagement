@@ -1,5 +1,6 @@
 server:
   port: 10002
+  address: 0.0.0.0
 
 spring:
   application:
@@ -26,7 +27,7 @@ spring:
                   cors-configurations:
                     '[/**]':
                       allowedOriginPatterns:
-                        - ${OA_WEB_ORIGIN_PATTERN:http://localhost:*}
+                        - "*"
                       allowedMethods: [GET, POST, PUT, DELETE, OPTIONS]
                       allowedHeaders: ['*']
                       exposedHeaders: [X-Trace-Id]

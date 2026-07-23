@@ -1,5 +1,6 @@
 server:
   port: 8849
+  address: 0.0.0.0
 
 spring:
   application:
@@ -49,3 +50,8 @@ oa:
     jwt-secret: ${JWT_SECRET}
   attendance:
     allowed-ips: ${OA_ATTENDANCE_ALLOWED_IPS}
+
+flowable:
+  database-schema-update: true
+  async-executor-activate: true
+  process-definition-location-prefix: classpath*:/processes/
