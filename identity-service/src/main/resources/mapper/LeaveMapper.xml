@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wut.practicum.mapper.LeaveMapper">
+
+    <resultMap id="LeaveMap" type="com.wut.practicum.entity.OaLeave">
+        <id property="id" column="id"/>
+        <result property="applicantId" column="applicant_id"/>
+        <result property="type" column="type"/>
+        <result property="startTime" column="start_time"/>
+        <result property="endTime" column="end_time"/>
+        <result property="reason" column="reason"/>
+        <result property="status" column="status"/>
+        <result property="applicantName" column="applicant_name"/>
+        <result property="applicantNo" column="applicant_no"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <resultMap id="AuditMap" type="com.wut.practicum.entity.OaLeaveAudit">
+        <id property="id" column="id"/>
+        <result property="leaveId" column="leave_id"/>
+        <result property="auditorId" column="auditor_id"/>
+        <result property="auditorName" column="auditor_name"/>
+        <result property="action" column="action"/>
+        <result property="comment" column="comment"/>
+        <result property="auditTime" column="audit_time"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <sql id="selectLeaveWithEmployee">
+        SELECT l.*, e.name AS applicant_name, e.employee_no AS applicant_no
+        FROM oa_leave l
+        LEFT JOIN oa_employee e ON l.applicant_id = e.id
+    </sql>
+
+    <select id="selectPage" resultMap="LeaveMap">
+        <include refid="selectLeaveWithEmployee"/>
+        <where>
+            <if test="applicantId != null">AND l.applicant_id = #{applicantId}</if>
+            <if test="status != null and status != ''">AND l.status = #{status}</if>
+            <if test="type != null and type != ''">AND l.type = #{type}</if>
+            <if test="deptId != null">
+                AND l.applicant_id IN (SELECT id FROM oa_employee WHERE department_id = #{deptId})
+            </if>
+        </where>
+        ORDER BY l.create_time DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countPage" resultType="long">
+        SELECT COUNT(*) FROM oa_leave l
+        <where>
+            <if test="applicantId != null">AND l.applicant_id = #{applicantId}</if>
+            <if test="status != null and status != ''">AND l.status = #{status}</if>
+            <if test="type != null and type != ''">AND l.type = #{type}</if>
+            <if test="deptId != null">
+                AND l.applicant_id IN (SELECT id FROM oa_employee WHERE department_id = #{deptId})
+            </if>
+        </where>
+    </select>
+
+    <select id="selectById" resultMap="LeaveMap">
+        <include refid="selectLeaveWithEmployee"/> WHERE l.id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO oa_leave (applicant_id, type, start_time, end_time, reason, status)
+        VALUES (#{applicantId}, #{type}, #{startTime}, #{endTime}, #{reason}, #{status})
+    </insert>
+
+    <update id="updateStatus">
+        UPDATE oa_leave SET status = #{status}, update_time = NOW() WHERE id = #{id}
+    </update>
+
+    <insert id="insertAudit" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO oa_leave_audit (leave_id, auditor_id, action, comment, audit_time)
+        VALUES (#{leaveId}, #{auditorId}, #{action}, #{comment}, NOW())
+    </insert>
+
+    <select id="selectAuditsByLeaveId" resultMap="AuditMap">
+        SELECT a.*, e.name AS auditor_name
+        FROM oa_leave_audit a
+        LEFT JOIN oa_employee e ON a.auditor_id = e.id
+        WHERE a.leave_id = #{leaveId}
+        ORDER BY a.audit_time ASC
+    </select>
+    <!-- 附件 -->
+    <insert id="insertAttachment" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO oa_leave_attachment (leave_id, file_name, file_url, file_size, mime_type)
+        VALUES (#{leaveId}, #{fileName}, #{fileUrl}, #{fileSize}, #{mimeType})
+    </insert>
+
+    <select id="selectAttachmentsByLeaveId" resultType="com.wut.practicum.entity.OaLeaveAttachment">
+        SELECT * FROM oa_leave_attachment WHERE leave_id = #{leaveId} ORDER BY create_time DESC
+    </select>
+
+    <select id="selectAttachmentById" resultType="com.wut.practicum.entity.OaLeaveAttachment">
+        SELECT * FROM oa_leave_attachment WHERE id = #{id}
+    </select>
+
+</mapper>

@@ -31,7 +31,7 @@ export interface PageResult<T> {
 
 /** 新增员工请求参数 */
 export interface CreateEmployeeRequest {
-  employeeNo: string
+  employeeNo?: string
   name: string
   departmentId?: number | null
   position?: string | null
@@ -119,5 +119,23 @@ export async function getEmployeesByDepartment(departmentId: number): Promise<Em
 /** 员工修改自己的信息（姓名、手机号） */
 export async function updateProfile(data: { name?: string; phone?: string }): Promise<EmployeeInfo> {
   const res = await http.put<ApiResult<EmployeeInfo>>('/employees/profile', data)
+  return res.data.data
+}
+
+export interface EmployeeImportResultVO {
+  totalCount: number
+  successCount: number
+  failCount: number
+  errorMessages: string[]
+  successDetails?: string[]
+}
+
+/** 批量导入员工 (Excel / CSV) */
+export async function importEmployees(file: File): Promise<EmployeeImportResultVO> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const res = await http.post<ApiResult<EmployeeImportResultVO>>('/employees/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
   return res.data.data
 }

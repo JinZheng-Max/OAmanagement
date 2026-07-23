@@ -28,6 +28,7 @@ import {
   type ContentSaveDTO,
   type EsReindexResultVO
 } from '../../api/content'
+import { listActiveDepartments, getMyDepartment, type DepartmentInfo } from '../../api/department'
 import { useAuthStore } from '../../stores/auth'
 
 const auth = useAuthStore()
@@ -35,6 +36,33 @@ const isAdmin = computed(() => {
   const role = auth.user?.role || ''
   return ['SUPER_ADMIN', 'DEPT_MANAGER', 'ADMIN', 'ROLE_ADMIN'].includes(role)
 })
+
+const isDeptManagerOnly = computed(() => {
+  return auth.isDeptManager && !auth.isSuperAdmin
+})
+
+// 部门列表与当前部门 ID
+const departmentList = ref<DepartmentInfo[]>([])
+const myDeptId = ref<number | null>(null)
+
+async function loadDepartments() {
+  try {
+    const depts = await listActiveDepartments()
+    departmentList.value = depts || []
+  } catch (e) {
+    console.error('获取部门列表失败', e)
+  }
+  if (isDeptManagerOnly.value && !myDeptId.value) {
+    try {
+      const myDept = await getMyDepartment()
+      if (myDept && myDept.department) {
+        myDeptId.value = myDept.department.id
+      }
+    } catch (e) {
+      console.error('获取我的部门失败', e)
+    }
+  }
+}
 
 // 当前 Tab 选项: 'search' | 'announcements' | 'policies' | 'admin'
 const activeTab = ref('announcements')
@@ -81,6 +109,7 @@ const categoryOptions = ['行政公告', '人事制度', '财务规范', '安全
 
 onMounted(() => {
   fetchEmployeeContents()
+  loadDepartments()
 })
 
 // 切换分类 Tab
@@ -173,7 +202,8 @@ async function openDetail(item: ContentDetailVO) {
 }
 
 // 打开新建/编辑草稿框
-function openDraftModal(item?: ContentDetailVO) {
+async function openDraftModal(item?: ContentDetailVO) {
+  await loadDepartments()
   if (item) {
     draftForm.value = {
       id: item.id,
@@ -181,8 +211,8 @@ function openDraftModal(item?: ContentDetailVO) {
       title: item.title,
       category: item.category || '行政公告',
       body: item.body,
-      scope: item.scope || 'ALL',
-      accessDepartmentId: item.accessDepartmentId
+      scope: isDeptManagerOnly.value ? 'DEPARTMENT' : (item.scope || 'ALL'),
+      accessDepartmentId: isDeptManagerOnly.value ? (myDeptId.value || item.accessDepartmentId) : item.accessDepartmentId
     }
   } else {
     draftForm.value = {
@@ -190,8 +220,8 @@ function openDraftModal(item?: ContentDetailVO) {
       title: '',
       category: '行政公告',
       body: '',
-      scope: 'ALL',
-      accessDepartmentId: undefined
+      scope: isDeptManagerOnly.value ? 'DEPARTMENT' : 'ALL',
+      accessDepartmentId: isDeptManagerOnly.value ? (myDeptId.value || undefined) : undefined
     }
   }
   draftModalVisible.value = true
@@ -570,14 +600,30 @@ function handleTabClick(tabName: string) {
         </el-form-item>
 
         <el-form-item label="可见范围">
-          <el-radio-group v-model="draftForm.scope">
+          <el-radio-group v-model="draftForm.scope" :disabled="isDeptManagerOnly">
             <el-radio value="ALL">全公司公开 (ALL)</el-radio>
             <el-radio value="DEPARTMENT">部门隔离 (DEPARTMENT)</el-radio>
           </el-radio-group>
+          <div v-if="isDeptManagerOnly" style="margin-top: 4px; font-size: 12px; color: #e6a23c;">
+            📢 提示：作为部门管理员，您发布的公告/规章制度固定限制为【本部门隔离】。
+          </div>
         </el-form-item>
 
-        <el-form-item v-if="draftForm.scope === 'DEPARTMENT'" label="授权部门 ID">
-          <el-input-number v-model="draftForm.accessDepartmentId" :min="1" placeholder="填写部门ID" />
+        <el-form-item v-if="draftForm.scope === 'DEPARTMENT'" label="授权部门" required>
+          <el-select
+            v-model="draftForm.accessDepartmentId"
+            placeholder="请选择授权部门"
+            style="width: 100%"
+            :disabled="isDeptManagerOnly"
+            clearable
+          >
+            <el-option
+              v-for="dept in departmentList"
+              :key="dept.id"
+              :label="`${dept.name} (${dept.code})`"
+              :value="dept.id"
+            />
+          </el-select>
         </el-form-item>
 
         <el-form-item label="正文内容" required>
@@ -882,6 +928,12 @@ function handleTabClick(tabName: string) {
   color: #475569;
   line-height: 1.6;
   margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 4.8em;
 }
 
 .item-meta {

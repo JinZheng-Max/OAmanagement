@@ -46,22 +46,32 @@ function handleMenuSelect(index: string) {
           <span>工作台</span>
         </el-menu-item>
 
-        <!-- 个人信息 -->
-        <el-menu-item index="/profile">
-          <el-icon><span>👤</span></el-icon>
+        <!-- 个人信息（普通员工 + 部门管理员可见） -->
+        <el-menu-item v-if="!auth.isSuperAdmin" index="/profile">
+          <el-icon><User /></el-icon>
           <span>个人信息</span>
         </el-menu-item>
 
-        <!-- 我的部门（非超级管理员：部门管理员和普通员工显示） -->
+        <!-- 我的部门（普通员工 + 部门管理员可见） -->
         <el-menu-item v-if="!auth.isSuperAdmin" index="/my-department">
-          <el-icon><span>🏢</span></el-icon>
+          <el-icon><HomeFilled /></el-icon>
           <span>我的部门</span>
         </el-menu-item>
 
         <!-- 部门员工管理（仅部门管理员可见） -->
         <el-menu-item v-if="auth.isDeptManager" index="/dept-employees">
           <el-icon><span>👥</span></el-icon>
-          <span>部门员工管理</span>
+          <span>部门员工</span>
+        </el-menu-item>
+
+        <!-- 请假（管理员和部门经理：审批管理 / 员工：我的请假） -->
+        <el-menu-item v-if="auth.isAdmin" index="/leaves">
+          <el-icon><Document /></el-icon>
+          <span>请假审批</span>
+        </el-menu-item>
+        <el-menu-item v-if="!auth.isAdmin" index="/leaves">
+          <el-icon><Edit /></el-icon>
+          <span>我的请假</span>
         </el-menu-item>
 
         <!-- 部门管理（仅超级管理员可见） -->
@@ -74,6 +84,18 @@ function handleMenuSelect(index: string) {
         <el-menu-item v-if="auth.isSuperAdmin" index="/employees">
           <el-icon><span>👥</span></el-icon>
           <span>员工管理</span>
+        </el-menu-item>
+
+        <!-- AI 智能问答 -->
+        <el-menu-item index="/ai-chat">
+          <el-icon><span>🤖</span></el-icon>
+          <span>智能问答</span>
+        </el-menu-item>
+
+        <!-- 知识库管理 -->
+        <el-menu-item index="/ai-sources">
+          <el-icon><span>📚</span></el-icon>
+          <span>知识库管理</span>
         </el-menu-item>
 
         <!-- 考勤管理 -->
@@ -94,7 +116,7 @@ function handleMenuSelect(index: string) {
         <div class="user-info">
           <span class="username">{{ auth.user?.username }}</span>
           <el-tag size="small" :type="auth.isSuperAdmin ? 'danger' : (auth.isDeptManager ? 'warning' : 'info')">
-            {{ auth.roleText }}
+            {{ auth.isSuperAdmin ? '总管理员' : (auth.isDeptManager ? '部门经理' : '员工') }}
           </el-tag>
         </div>
         <el-button size="small" @click="signOut">退出</el-button>

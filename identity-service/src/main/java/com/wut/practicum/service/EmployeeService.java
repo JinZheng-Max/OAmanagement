@@ -67,4 +67,9 @@ public interface EmployeeService {
      * @return 更新后的员工信息
      */
     EmployeeResponse updateProfile(Long employeeId, EmployeeProfileUpdateRequest request);
+
+    /**
+     * 批量导入员工 (支持 Excel 和 CSV)
+     */
+    EmployeeImportResultVO importEmployees(org.springframework.web.multipart.MultipartFile file);
 }

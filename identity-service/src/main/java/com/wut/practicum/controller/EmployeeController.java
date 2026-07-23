@@ -76,12 +76,18 @@ public class EmployeeController {
     public ApiResult<String> createAccount(@PathVariable Long id,
                                            @Valid @RequestBody CreateAccountRequest request) {
         String tempPassword = employeeService.createAccount(id, request);
-        return ApiResult.success(tempPassword, "账号开通成功，初始密码为: " + tempPassword);
+        return ApiResult.success(tempPassword, "账号开通成功，初始密码统一为: 123456");
     }
 
     @PutMapping("/account/{userId}/reset-password")
     public ApiResult<String> resetPassword(@PathVariable Long userId) {
         String newPassword = employeeService.resetPassword(userId);
         return ApiResult.success(newPassword, "密码已重置为: " + newPassword);
+    }
+
+    @PostMapping("/import")
+    public ApiResult<EmployeeImportResultVO> importEmployees(@RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        EmployeeImportResultVO result = employeeService.importEmployees(file);
+        return ApiResult.success(result, "导入分析完成");
     }
 }

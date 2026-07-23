@@ -37,9 +37,10 @@ public class GatewaySecurityFilter implements WebFilter {
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         String path = exchange.getRequest().getPath().value();
         if (path.startsWith("/internal")) return error(exchange, HttpStatus.NOT_FOUND, "资源不存在");
-        if (HttpMethod.OPTIONS.equals(exchange.getRequest().getMethod()) || 
-            path.equals("/api/auth/login") || 
-            path.equals("/actuator/health")) {
+        if (HttpMethod.OPTIONS.equals(exchange.getRequest().getMethod()) ||
+            path.equals("/api/auth/login") ||
+            path.equals("/actuator/health") ||
+            path.startsWith("/api/ai/")) {
             return chain.filter(exchange);
         }
         String authorization = exchange.getRequest().getHeaders().getFirst("Authorization");

@@ -83,8 +83,8 @@ function openEditEmpModal(row: EmployeeInfo) {
 }
 
 async function handleEmpSubmit() {
-  if (!empForm.value.employeeNo || !empForm.value.name) {
-    ElMessage.warning('请填写工号和姓名')
+  if (!empForm.value.name) {
+    ElMessage.warning('请填写姓名')
     return
   }
   if (!deptInfo.value?.department?.id) {
@@ -248,9 +248,6 @@ function getRoleLabel(role: string | null | undefined): string {
     <!-- 新增/编辑本部门员工弹窗 -->
     <el-dialog v-model="empDialogVisible" :title="isEdit ? '编辑员工信息' : '新增本部门员工'" width="460px">
       <el-form :model="empForm" label-width="90px">
-        <el-form-item label="工号" required>
-          <el-input v-model="empForm.employeeNo" :disabled="isEdit" placeholder="如 EMP001" />
-        </el-form-item>
         <el-form-item label="姓名" required>
           <el-input v-model="empForm.name" placeholder="请输入员工姓名" />
         </el-form-item>

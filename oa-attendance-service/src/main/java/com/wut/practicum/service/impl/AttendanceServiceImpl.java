@@ -9,12 +9,13 @@ import com.wut.practicum.dto.AttendanceResponse;
 import com.wut.practicum.dto.EmployeeResponse;
 import com.wut.practicum.dto.PageQuery;
 import com.wut.practicum.entity.OaAttendance;
+import com.wut.practicum.entity.OaAttendanceRule;
 import com.wut.practicum.mapper.AttendanceMapper;
+import com.wut.practicum.mapper.OaAttendanceRuleMapper;
 import com.wut.practicum.service.AttendanceService;
 import com.wut.practicum.util.IpValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
@@ -25,7 +26,6 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -35,28 +35,28 @@ import java.util.stream.Collectors;
 public class AttendanceServiceImpl implements AttendanceService {
 
     private final AttendanceMapper attendanceMapper;
+    private final OaAttendanceRuleMapper oaAttendanceRuleMapper;
     private final EmployeeClient employeeClient;
     private final IpValidator ipValidator;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
-    @Value("${oa.attendance.check-in-start:09:00}")
-    private String checkInStartStr;
-
-    @Value("${oa.attendance.check-in-end:09:30}")
-    private String checkInEndStr;
-
-    @Value("${oa.attendance.check-out-start:18:00}")
-    private String checkOutStartStr;
-
-    @Value("${oa.attendance.check-out-end:19:00}")
-    private String checkOutEndStr;
 
     private static final ZoneId ZONE_SHANGHAI = ZoneId.of("Asia/Shanghai");
 
+    @jakarta.annotation.PostConstruct
+    public void initDatabaseTable() {
+        try {
+            oaAttendanceRuleMapper.createTableIfNotExists();
+            log.info("Attendance rule table check/initialization completed.");
+        } catch (Exception e) {
+            log.warn("Failed to check/create sys_department_attendance_rule table", e);
+        }
+    }
+
     @Override
     @Transactional
-    public AttendanceResponse checkIn(Long employeeId, String clientIp) {
-        // 1. Verify if employee exists and is active
+    public AttendanceResponse checkIn(Long employeeId, Long attendanceId, String clientIp) {
+        // 1. 验证员工在职状态
         ApiResult<EmployeeResponse> empResult = employeeClient.getById(employeeId);
         if (empResult == null || empResult.code() != 200 || empResult.data() == null) {
             throw new BusinessException(400, HttpStatus.BAD_REQUEST, "员工不存在");
@@ -66,48 +66,73 @@ public class AttendanceServiceImpl implements AttendanceService {
             throw new BusinessException(400, HttpStatus.BAD_REQUEST, "员工已离职，无法考勤");
         }
 
-        // 2. Verify IP network constraint
+        // 2. 校验内网 IP 限制
         if (!ipValidator.isValid(clientIp)) {
             throw new BusinessException(400, HttpStatus.BAD_REQUEST, "当前网络非公司内网，禁止签到");
         }
-        // 3. Time setup and restriction
+
         LocalDateTime now = LocalDateTime.now(ZONE_SHANGHAI);
         java.time.LocalTime nowTime = now.toLocalTime();
-        java.time.LocalTime startTime = java.time.LocalTime.parse(checkInStartStr != null ? checkInStartStr : "09:00");
-        java.time.LocalTime endTime = java.time.LocalTime.parse(checkInEndStr != null ? checkInEndStr : "09:30");
-        if (nowTime.isBefore(startTime) || nowTime.isAfter(endTime)) {
-            throw new BusinessException(400, HttpStatus.BAD_REQUEST, "非签到时间段（打卡时间为" + (checkInStartStr != null ? checkInStartStr : "09:00") + " - " + (checkInEndStr != null ? checkInEndStr : "09:30") + "），请联系管理员补录");
-        }
         String workDate = now.toLocalDate().toString();
 
-        // 4. Redis lock/prevent concurrent double check-ins
-        String lockKey = "oa:attendance:lock:" + employeeId + ":" + workDate;
+        // 3. 获取特定的考勤场次任务
+        OaAttendance existing = null;
+        if (attendanceId != null) {
+            existing = attendanceMapper.selectById(attendanceId);
+        } else {
+            List<OaAttendance> list = attendanceMapper.selectListByEmployeeAndDate(employeeId, workDate);
+            if (list != null && !list.isEmpty()) {
+                for (OaAttendance item : list) {
+                    if (!"CHECKED_IN".equals(item.getStatus()) && !"CHECKED_OUT".equals(item.getStatus()) && !"LATE".equals(item.getStatus())) {
+                        existing = item;
+                        break;
+                    }
+                }
+                if (existing == null) existing = list.get(0);
+            }
+        }
+
+        if (existing == null) {
+            throw new BusinessException(400, HttpStatus.BAD_REQUEST, "今日尚未发布考勤任务，请联系部门管理员发布");
+        }
+
+        if ("CHECKED_IN".equals(existing.getStatus()) || "CHECKED_OUT".equals(existing.getStatus()) || "LATE".equals(existing.getStatus())) {
+            throw new BusinessException(40910, HttpStatus.CONFLICT, "【" + existing.getSessionName() + "】您已经完成签到，请勿重复操作", convertToResponse(existing));
+        }
+
+        // 4. Redis 防重提交锁
+        String lockKey = "oa:attendance:lock:in:" + existing.getId();
         Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, "1", Duration.ofSeconds(5));
         if (locked == null || !locked) {
             throw new BusinessException(40910, HttpStatus.CONFLICT, "签到处理中，请勿重复提交");
         }
 
         try {
-            // Check if record exists (pre-created by scheduler)
-            OaAttendance existing = attendanceMapper.selectByEmployeeAndDate(employeeId, workDate);
-            if (existing == null) {
-                throw new BusinessException(400, HttpStatus.BAD_REQUEST, "签到尚未发布，请联系管理员补录");
+            // 5. 动态时间窗口校验与迟到状态判断
+            String startStr = (existing.getCheckInStartTime() != null && !existing.getCheckInStartTime().isBlank()) ? existing.getCheckInStartTime() : "08:50";
+            String normalEndStr = (existing.getNormalCheckInEndTime() != null && !existing.getNormalCheckInEndTime().isBlank()) ? existing.getNormalCheckInEndTime() : "09:10";
+            String endStr = (existing.getCheckInEndTime() != null && !existing.getCheckInEndTime().isBlank()) ? existing.getCheckInEndTime() : "12:10";
+
+            java.time.LocalTime startTime = java.time.LocalTime.parse(startStr);
+            java.time.LocalTime normalEndTime = java.time.LocalTime.parse(normalEndStr);
+            java.time.LocalTime endTime = java.time.LocalTime.parse(endStr);
+
+            if (nowTime.isBefore(startTime)) {
+                throw new BusinessException(400, HttpStatus.BAD_REQUEST, "【" + existing.getSessionName() + "】签到尚未开放（开放时间为 " + startStr + " - " + endStr + "）");
+            }
+            if (nowTime.isAfter(endTime)) {
+                throw new BusinessException(400, HttpStatus.BAD_REQUEST, "【" + existing.getSessionName() + "】签到已截止（最晚截止 " + endStr + "），请在系统中提交补签申请");
             }
 
-            // Validate status transitions
-            if ("CHECKED_IN".equals(existing.getStatus()) || "CHECKED_OUT".equals(existing.getStatus())) {
-                throw new BusinessException(40910, HttpStatus.CONFLICT, "重复签到", convertToResponse(existing));
-            }
+            // 6. 判定状态（在正常截止时间前为 CHECKED_IN，之后为 LATE 迟到）
+            String status = nowTime.isAfter(normalEndTime) ? "LATE" : "CHECKED_IN";
 
-            // Update record
             existing.setCheckIn(now);
             existing.setCheckInIp(clientIp);
-            existing.setStatus("CHECKED_IN");
+            existing.setStatus(status);
             existing.setUpdateTime(now);
 
             attendanceMapper.update(existing);
-
-            // Clean caches
             clearPersonalCache(employeeId);
             clearAdminCache();
 
@@ -116,60 +141,534 @@ public class AttendanceServiceImpl implements AttendanceService {
             redisTemplate.delete(lockKey);
         }
     }
+
     @Override
     @Transactional
-    public AttendanceResponse checkOut(Long employeeId, String clientIp) {
-        // 1. Verify IP network constraint
+    public AttendanceResponse checkOut(Long employeeId, Long attendanceId, String clientIp) {
         if (!ipValidator.isValid(clientIp)) {
             throw new BusinessException(400, HttpStatus.BAD_REQUEST, "当前网络非公司内网，禁止签退");
         }
 
-        // Time setup
         LocalDateTime now = LocalDateTime.now(ZONE_SHANGHAI);
+        java.time.LocalTime nowTime = now.toLocalTime();
         String workDate = now.toLocalDate().toString();
 
-        // Check if record exists
-        OaAttendance existing = attendanceMapper.selectByEmployeeAndDate(employeeId, workDate);
+        OaAttendance existing = null;
+        if (attendanceId != null) {
+            existing = attendanceMapper.selectById(attendanceId);
+        } else {
+            List<OaAttendance> list = attendanceMapper.selectListByEmployeeAndDate(employeeId, workDate);
+            if (list != null && !list.isEmpty()) {
+                for (OaAttendance item : list) {
+                    if ("CHECKED_IN".equals(item.getStatus()) || "LATE".equals(item.getStatus())) {
+                        existing = item;
+                        break;
+                    }
+                }
+                if (existing == null) existing = list.get(0);
+            }
+        }
+
         if (existing == null) {
-            throw new BusinessException(40911, HttpStatus.CONFLICT, "未签到即签退");
+            throw new BusinessException(40911, HttpStatus.CONFLICT, "暂无签到记录，请联系管理员");
         }
 
-        // Validate state transitions
-        if ("CHECKED_OUT".equals(existing.getStatus()) || "LEAVE_EARLY".equals(existing.getStatus())) {
-            throw new BusinessException(40911, HttpStatus.CONFLICT, "重复签退");
-        }
-        if (!"CHECKED_IN".equals(existing.getStatus())) {
-            throw new BusinessException(40911, HttpStatus.CONFLICT, "未签到即签退");
+        if ("CHECKED_OUT".equals(existing.getStatus()) || "EARLY_LEAVE".equals(existing.getStatus())) {
+            throw new BusinessException(40911, HttpStatus.CONFLICT, "【" + existing.getSessionName() + "】您已完成签退，请勿重复操作");
         }
 
-        // Validate checkout window: 18:00 - 19:00
-        java.time.LocalTime nowTime = now.toLocalTime();
-        java.time.LocalTime startTime = java.time.LocalTime.parse(checkOutStartStr != null ? checkOutStartStr : "18:00");
-        java.time.LocalTime endTime = java.time.LocalTime.parse(checkOutEndStr != null ? checkOutEndStr : "19:00");
-
-        if (nowTime.isAfter(endTime)) {
-            throw new BusinessException(400, HttpStatus.BAD_REQUEST, "非签退时间段（签退时间为" + (checkOutStartStr != null ? checkOutStartStr : "18:00") + " - " + (checkOutEndStr != null ? checkOutEndStr : "19:00") + "），请联系管理员补录");
+        String lockKey = "oa:attendance:lock:out:" + existing.getId();
+        Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, "1", Duration.ofSeconds(5));
+        if (locked == null || !locked) {
+            throw new BusinessException(40911, HttpStatus.CONFLICT, "签退处理中，请勿重复提交");
         }
 
-        boolean isLeaveEarly = nowTime.isBefore(startTime);
+        try {
+            String normalStartStr = (existing.getNormalCheckOutStartTime() != null && !existing.getNormalCheckOutStartTime().isBlank()) ? existing.getNormalCheckOutStartTime() : "11:50";
+            String endStr = (existing.getCheckOutEndTime() != null && !existing.getCheckOutEndTime().isBlank()) ? existing.getCheckOutEndTime() : "12:10";
 
-        // Update record
-        existing.setCheckOut(now);
-        existing.setCheckOutIp(clientIp);
-        existing.setStatus(isLeaveEarly ? "LEAVE_EARLY" : "CHECKED_OUT");
-        existing.setUpdateTime(now);
+            java.time.LocalTime normalStartTime = java.time.LocalTime.parse(normalStartStr);
+            java.time.LocalTime endTime = java.time.LocalTime.parse(endStr);
 
-        attendanceMapper.update(existing);
+            if (nowTime.isAfter(endTime)) {
+                throw new BusinessException(400, HttpStatus.BAD_REQUEST, "【" + existing.getSessionName() + "】签退已截止，请提交补签申请");
+            }
 
-        // Clean caches
+            boolean isLeaveEarly = nowTime.isBefore(normalStartTime);
+
+            existing.setCheckOut(now);
+            existing.setCheckOutIp(clientIp);
+            existing.setStatus(isLeaveEarly ? "EARLY_LEAVE" : "CHECKED_OUT");
+            existing.setUpdateTime(now);
+
+            attendanceMapper.update(existing);
+            clearPersonalCache(employeeId);
+            clearAdminCache();
+
+            return convertToResponse(existing);
+        } finally {
+            redisTemplate.delete(lockKey);
+        }
+    }
+
+    @Override
+    @Transactional
+    public List<OaAttendance> queryTodayPersonalTasks(Long employeeId) {
+        String today = LocalDate.now(ZONE_SHANGHAI).toString();
+        LocalDateTime now = LocalDateTime.now(ZONE_SHANGHAI);
+
+        // 1. 获取员工所属部门
+        Long deptId = null;
+        try {
+            ApiResult<EmployeeResponse> empResult = employeeClient.getById(employeeId);
+            if (empResult != null && empResult.data() != null) {
+                deptId = empResult.data().departmentId();
+            }
+        } catch (Exception e) {
+            log.warn("queryTodayPersonalTasks: 获取员工部门信息失败 employeeId={}", employeeId, e);
+        }
+        if (deptId == null) {
+            log.info("queryTodayPersonalTasks: 员工 {} 暂无部门，分配默认部门 1", employeeId);
+            deptId = 1L;
+        }
+
+        // 2. 查询部门的已启用考勤规则
+        List<OaAttendanceRule> rules = oaAttendanceRuleMapper.selectByDepartmentId(deptId);
+        if (rules == null) rules = new java.util.ArrayList<>();
+        
+        // 过滤只保留 enabled=1 的规则
+        List<OaAttendanceRule> enabledRules = rules.stream()
+                .filter(r -> r.getEnabled() != null && r.getEnabled() == 1)
+                .collect(Collectors.toList());
+
+        // 保底处理：若部门尚未配置或启用任何考勤规则，自动为其初始化默认模板 (上午场 + 下午场)
+        if (enabledRules.isEmpty()) {
+            log.info("queryTodayPersonalTasks: 部门 {} 暂无已启用考勤规则，自动生成保底默认规则模板", deptId);
+            OaAttendanceRule r1 = new OaAttendanceRule();
+            r1.setDepartmentId(deptId);
+            r1.setSessionName("上午场");
+            r1.setCheckInStartTime("08:50");
+            r1.setNormalCheckInEndTime("09:10");
+            r1.setCheckInEndTime("12:10");
+            r1.setNormalCheckOutStartTime("11:50");
+            r1.setCheckOutEndTime("12:10");
+            r1.setEnabled(1);
+            try { oaAttendanceRuleMapper.insert(r1); } catch (Exception ignored) {}
+
+            OaAttendanceRule r2 = new OaAttendanceRule();
+            r2.setDepartmentId(deptId);
+            r2.setSessionName("下午场");
+            r2.setCheckInStartTime("13:50");
+            r2.setNormalCheckInEndTime("14:10");
+            r2.setCheckInEndTime("17:10");
+            r2.setNormalCheckOutStartTime("16:50");
+            r2.setCheckOutEndTime("17:10");
+            r2.setEnabled(1);
+            try { oaAttendanceRuleMapper.insert(r2); } catch (Exception ignored) {}
+
+            enabledRules = oaAttendanceRuleMapper.selectByDepartmentId(deptId).stream()
+                    .filter(r -> r.getEnabled() != null && r.getEnabled() == 1)
+                    .collect(Collectors.toList());
+        }
+
+        log.info("queryTodayPersonalTasks: employeeId={} deptId={} 找到 {} 条已启用规则", employeeId, deptId, enabledRules.size());
+
+        // 3. 对每条规则，确保今天有对应的考勤任务记录
+        for (OaAttendanceRule rule : enabledRules) {
+            String sessionName = rule.getSessionName();
+            OaAttendance existing = attendanceMapper.selectByEmployeeDateAndSession(employeeId, today, sessionName);
+            log.info("queryTodayPersonalTasks: 查询 [{}] 场次记录 -> {}", sessionName, existing == null ? "不存在，将新增" : "已存在 id=" + existing.getId());
+            if (existing == null) {
+                OaAttendance att = new OaAttendance();
+                att.setEmployeeId(employeeId);
+                att.setDepartmentId(deptId);
+                att.setWorkDate(today);
+                att.setSessionName(sessionName);
+                att.setCheckInStartTime(rule.getCheckInStartTime());
+                att.setNormalCheckInEndTime(rule.getNormalCheckInEndTime());
+                att.setCheckInEndTime(rule.getCheckInEndTime());
+                att.setNormalCheckOutStartTime(rule.getNormalCheckOutStartTime());
+                att.setCheckOutEndTime(rule.getCheckOutEndTime());
+                att.setStatus("UNCHECKED");
+                att.setReplenishStatus("NONE");
+                att.setCreateTime(now);
+                att.setUpdateTime(now);
+                try {
+                    attendanceMapper.insert(att);
+                    log.info("queryTodayPersonalTasks: 成功插入 [{}] 场次, id={}", sessionName, att.getId());
+                } catch (Exception e) {
+                    log.error("queryTodayPersonalTasks: 插入 [{}] 场次失败！", sessionName, e);
+                }
+            }
+        }
+
+        // 4. 返回今天所有场次记录（若仍然为空，强制为该员工生成【上午场】与【下午场】保底任务记录）
+        List<OaAttendance> result = attendanceMapper.selectListByEmployeeAndDate(employeeId, today);
+        log.info("queryTodayPersonalTasks: employeeId={} 今日共返回 {} 条记录", employeeId, result == null ? 0 : result.size());
+
+        if (result == null || result.isEmpty()) {
+            log.info("queryTodayPersonalTasks: 员工 {} 今日尚无任务记录，强行生成默认上午场与下午场记录", employeeId);
+            OaAttendance att1 = new OaAttendance();
+            att1.setEmployeeId(employeeId);
+            att1.setDepartmentId(deptId);
+            att1.setWorkDate(today);
+            att1.setSessionName("上午场");
+            att1.setCheckInStartTime("08:50");
+            att1.setNormalCheckInEndTime("09:10");
+            att1.setCheckInEndTime("12:10");
+            att1.setNormalCheckOutStartTime("11:50");
+            att1.setCheckOutEndTime("12:10");
+            att1.setStatus("UNCHECKED");
+            att1.setReplenishStatus("NONE");
+            att1.setCreateTime(now);
+            att1.setUpdateTime(now);
+            try { attendanceMapper.insert(att1); } catch (Exception ignored) {}
+
+            OaAttendance att2 = new OaAttendance();
+            att2.setEmployeeId(employeeId);
+            att2.setDepartmentId(deptId);
+            att2.setWorkDate(today);
+            att2.setSessionName("下午场");
+            att2.setCheckInStartTime("13:50");
+            att2.setNormalCheckInEndTime("14:10");
+            att2.setCheckInEndTime("17:10");
+            att2.setNormalCheckOutStartTime("16:50");
+            att2.setCheckOutEndTime("17:10");
+            att2.setStatus("UNCHECKED");
+            att2.setReplenishStatus("NONE");
+            att2.setCreateTime(now);
+            att2.setUpdateTime(now);
+            try { attendanceMapper.insert(att2); } catch (Exception ignored) {}
+
+            result = attendanceMapper.selectListByEmployeeAndDate(employeeId, today);
+        }
+
+        if (result != null && result.size() > 1) {
+            List<OaAttendance> filtered = result.stream()
+                    .filter(t -> !"默认场次".equals(t.getSessionName()))
+                    .collect(Collectors.toList());
+            if (!filtered.isEmpty()) return filtered;
+        }
+        return result;
+    }
+
+    // ================= 部门规则管理 =================
+
+    @Override
+    public List<OaAttendanceRule> getDepartmentRules(Long departmentId, Long operatorDeptId, String operatorRole) {
+        // 部门经理只能查看本部门规则
+        if ("DEPT_MANAGER".equalsIgnoreCase(operatorRole)) {
+            if (operatorDeptId == null || !operatorDeptId.equals(departmentId)) {
+                departmentId = operatorDeptId;
+            }
+        }
+        if (departmentId == null) {
+            return oaAttendanceRuleMapper.selectAllEnabled();
+        }
+        return oaAttendanceRuleMapper.selectByDepartmentId(departmentId);
+    }
+
+    @Override
+    @Transactional
+    public OaAttendanceRule saveDepartmentRule(OaAttendanceRule rule, Long operatorDeptId, String operatorRole) {
+        if (rule.getDepartmentId() == null) {
+            throw new BusinessException(400, HttpStatus.BAD_REQUEST, "部门ID不能为空");
+        }
+        if ("DEPT_MANAGER".equalsIgnoreCase(operatorRole)) {
+            if (operatorDeptId == null || !operatorDeptId.equals(rule.getDepartmentId())) {
+                throw new BusinessException(403, HttpStatus.FORBIDDEN, "权限不足：部门管理员只能维护本部门的考勤规则");
+            }
+        }
+
+        if (rule.getSessionName() == null || rule.getSessionName().isBlank()) {
+            throw new BusinessException(400, HttpStatus.BAD_REQUEST, "场次名称不能为空 (如 上午场 / 下午场)");
+        }
+        if (rule.getCheckInStartTime() == null || rule.getNormalCheckInEndTime() == null || rule.getCheckInEndTime() == null
+                || rule.getNormalCheckOutStartTime() == null || rule.getCheckOutEndTime() == null) {
+            throw new BusinessException(400, HttpStatus.BAD_REQUEST, "签到签退所有时间窗口均不能为空");
+        }
+
+        if (rule.getEnabled() == null) rule.setEnabled(1);
+
+        if (rule.getId() == null) {
+            OaAttendanceRule exist = oaAttendanceRuleMapper.selectByDeptAndSession(rule.getDepartmentId(), rule.getSessionName().trim());
+            if (exist != null) {
+                throw new BusinessException(400, HttpStatus.BAD_REQUEST, "该部门下已存在同名场次规则: " + rule.getSessionName());
+            }
+            rule.setSessionName(rule.getSessionName().trim());
+            oaAttendanceRuleMapper.insert(rule);
+        } else {
+            oaAttendanceRuleMapper.update(rule);
+        }
+
+        // 规则修改后，自动为今天尚未打卡(UNCHECKED)的卡片同步最新规则的时间窗口
+        try {
+            String today = LocalDate.now(ZONE_SHANGHAI).toString();
+            attendanceMapper.updateUncheckedRuleSnapshot(
+                    rule.getDepartmentId(),
+                    today,
+                    rule.getSessionName(),
+                    rule.getCheckInStartTime(),
+                    rule.getNormalCheckInEndTime(),
+                    rule.getCheckInEndTime(),
+                    rule.getNormalCheckOutStartTime(),
+                    rule.getCheckOutEndTime()
+            );
+        } catch (Exception e) {
+            log.warn("Sync rule snapshot for unchecked tasks failed", e);
+        }
+
+        return oaAttendanceRuleMapper.selectById(rule.getId());
+    }
+
+    @Override
+    @Transactional
+    public void deleteDepartmentRule(Long ruleId, Long operatorDeptId, String operatorRole) {
+        OaAttendanceRule rule = oaAttendanceRuleMapper.selectById(ruleId);
+        if (rule == null) return;
+        if ("DEPT_MANAGER".equalsIgnoreCase(operatorRole)) {
+            if (operatorDeptId == null || !operatorDeptId.equals(rule.getDepartmentId())) {
+                throw new BusinessException(403, HttpStatus.FORBIDDEN, "权限不足：部门管理员只能删除本部门考勤规则");
+            }
+        }
+        oaAttendanceRuleMapper.deleteById(ruleId);
+    }
+
+    // ================= 任务自动与手动发布 =================
+
+    @Override
+    @Transactional
+    public int publishDailyAttendance() {
+        return autoPublishAllActiveDepartmentTasks();
+    }
+
+    @Override
+    @Transactional
+    public int autoPublishAllActiveDepartmentTasks() {
+        String workDate = LocalDate.now(ZONE_SHANGHAI).toString();
+        List<OaAttendanceRule> rules = oaAttendanceRuleMapper.selectAllEnabled();
+        if (rules == null || rules.isEmpty()) return 0;
+
+        int totalCreated = 0;
+        LocalDateTime now = LocalDateTime.now(ZONE_SHANGHAI);
+
+        for (OaAttendanceRule rule : rules) {
+            List<Long> empIds = attendanceMapper.selectActiveEmployeeIdsByDepartment(rule.getDepartmentId());
+            if (empIds == null || empIds.isEmpty()) continue;
+
+            for (Long empId : empIds) {
+                OaAttendance exist = attendanceMapper.selectByEmployeeDateAndSession(empId, workDate, rule.getSessionName());
+                if (exist == null) {
+                    OaAttendance att = new OaAttendance();
+                    att.setEmployeeId(empId);
+                    att.setDepartmentId(rule.getDepartmentId());
+                    att.setWorkDate(workDate);
+                    att.setSessionName(rule.getSessionName());
+                    att.setCheckInStartTime(rule.getCheckInStartTime());
+                    att.setNormalCheckInEndTime(rule.getNormalCheckInEndTime());
+                    att.setCheckInEndTime(rule.getCheckInEndTime());
+                    att.setNormalCheckOutStartTime(rule.getNormalCheckOutStartTime());
+                    att.setCheckOutEndTime(rule.getCheckOutEndTime());
+                    att.setStatus("UNCHECKED");
+                    att.setReplenishStatus("NONE");
+                    att.setCreateTime(now);
+                    att.setUpdateTime(now);
+                    try {
+                        attendanceMapper.insert(att);
+                        totalCreated++;
+                    } catch (DuplicateKeyException ignored) {}
+                }
+            }
+        }
+        clearAdminCache();
+        return totalCreated;
+    }
+
+    @Override
+    @Transactional
+    public int publishDepartmentAttendanceTask(Long departmentId, String targetDate, String sessionName, Long operatorDeptId, String operatorRole) {
+        if ("DEPT_MANAGER".equalsIgnoreCase(operatorRole)) {
+            if (operatorDeptId == null || !operatorDeptId.equals(departmentId)) {
+                throw new BusinessException(403, HttpStatus.FORBIDDEN, "权限不足：只能发布本部门考勤任务");
+            }
+        }
+        if (targetDate == null || targetDate.isBlank()) {
+            targetDate = LocalDate.now(ZONE_SHANGHAI).toString();
+        }
+
+        List<OaAttendanceRule> rules = oaAttendanceRuleMapper.selectByDepartmentId(departmentId);
+        if (rules == null || rules.isEmpty()) {
+            // 为该部门自动创建默认考勤规则（上午场 08:50-12:10，下午场 13:50-17:10）
+            OaAttendanceRule r1 = new OaAttendanceRule();
+            r1.setDepartmentId(departmentId);
+            r1.setSessionName("上午场");
+            r1.setCheckInStartTime("08:50");
+            r1.setNormalCheckInEndTime("09:10");
+            r1.setCheckInEndTime("12:10");
+            r1.setNormalCheckOutStartTime("11:50");
+            r1.setCheckOutEndTime("12:10");
+            r1.setEnabled(1);
+            try { oaAttendanceRuleMapper.insert(r1); } catch (Exception ignored) {}
+
+            OaAttendanceRule r2 = new OaAttendanceRule();
+            r2.setDepartmentId(departmentId);
+            r2.setSessionName("下午场");
+            r2.setCheckInStartTime("13:50");
+            r2.setNormalCheckInEndTime("14:10");
+            r2.setCheckInEndTime("17:10");
+            r2.setNormalCheckOutStartTime("16:50");
+            r2.setCheckOutEndTime("17:10");
+            r2.setEnabled(1);
+            try { oaAttendanceRuleMapper.insert(r2); } catch (Exception ignored) {}
+
+            rules = oaAttendanceRuleMapper.selectByDepartmentId(departmentId);
+        }
+
+        List<Long> empIds = attendanceMapper.selectActiveEmployeeIdsByDepartment(departmentId);
+        if (empIds == null || empIds.isEmpty()) {
+            throw new BusinessException(400, HttpStatus.BAD_REQUEST, "该部门下暂无在职员工");
+        }
+
+        int created = 0;
+        LocalDateTime now = LocalDateTime.now(ZONE_SHANGHAI);
+
+        for (OaAttendanceRule rule : rules) {
+            if (rule.getEnabled() == null || rule.getEnabled() != 1) continue;
+            if (sessionName != null && !sessionName.isBlank() && !sessionName.equals(rule.getSessionName())) {
+                continue;
+            }
+
+            for (Long empId : empIds) {
+                OaAttendance exist = attendanceMapper.selectByEmployeeDateAndSession(empId, targetDate, rule.getSessionName());
+                if (exist == null) {
+                    OaAttendance att = new OaAttendance();
+                    att.setEmployeeId(empId);
+                    att.setDepartmentId(departmentId);
+                    att.setWorkDate(targetDate);
+                    att.setSessionName(rule.getSessionName());
+                    att.setCheckInStartTime(rule.getCheckInStartTime());
+                    att.setNormalCheckInEndTime(rule.getNormalCheckInEndTime());
+                    att.setCheckInEndTime(rule.getCheckInEndTime());
+                    att.setNormalCheckOutStartTime(rule.getNormalCheckOutStartTime());
+                    att.setCheckOutEndTime(rule.getCheckOutEndTime());
+                    att.setStatus("UNCHECKED");
+                    att.setReplenishStatus("NONE");
+                    att.setCreateTime(now);
+                    att.setUpdateTime(now);
+                    try {
+                        attendanceMapper.insert(att);
+                        created++;
+                    } catch (DuplicateKeyException ignored) {}
+                }
+            }
+        }
+
+        clearAdminCache();
+        return created;
+    }
+
+    // ================= 补签申请与审批 =================
+
+    @Override
+    @Transactional
+    public AttendanceResponse applyReplenishment(Long attendanceId, Long employeeId, String reason) {
+        OaAttendance att = attendanceMapper.selectById(attendanceId);
+        if (att == null) {
+            throw new BusinessException(404, HttpStatus.NOT_FOUND, "考勤记录不存在");
+        }
+        if (!att.getEmployeeId().equals(employeeId)) {
+            throw new BusinessException(403, HttpStatus.FORBIDDEN, "只能为自己的考勤发起补签申请");
+        }
+        if ("PENDING".equals(att.getReplenishStatus())) {
+            throw new BusinessException(400, HttpStatus.BAD_REQUEST, "补签申请已在审批中，请勿重复发起");
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new BusinessException(400, HttpStatus.BAD_REQUEST, "补签原因不能为空");
+        }
+
+        att.setReplenishStatus("PENDING");
+        att.setReplenishReason(reason.trim());
+        att.setUpdateTime(LocalDateTime.now(ZONE_SHANGHAI));
+
+        attendanceMapper.update(att);
         clearPersonalCache(employeeId);
         clearAdminCache();
 
-        return convertToResponse(existing);
+        return convertToResponse(attendanceMapper.selectById(attendanceId));
     }
+
+    @Override
+    @Transactional
+    public AttendanceResponse approveReplenishment(Long attendanceId, Long approverUserId, Long approverEmployeeId, String approverRole, boolean approved, String comment) {
+        OaAttendance att = attendanceMapper.selectById(attendanceId);
+        if (att == null) {
+            throw new BusinessException(404, HttpStatus.NOT_FOUND, "考勤记录不存在");
+        }
+        if (!"PENDING".equals(att.getReplenishStatus())) {
+            throw new BusinessException(400, HttpStatus.BAD_REQUEST, "该记录当前不在待补签状态");
+        }
+
+        // 核心规则：部门经理发起的补签，只能由超级管理员审批！
+        boolean targetIsDeptManager = false;
+        if (approverEmployeeId != null && approverEmployeeId.equals(att.getEmployeeId())) {
+            // 自批拦截
+            throw new BusinessException(403, HttpStatus.FORBIDDEN, "权限不足：不能审批自己的补签申请");
+        }
+
+        // 检查申请人是否为部门经理（由客户端 / 部门库获取）
+        ApiResult<EmployeeResponse> targetEmpRes = employeeClient.getById(att.getEmployeeId());
+        if (targetEmpRes != null && targetEmpRes.data() != null) {
+            // 若包含经理标识，必须为 SUPER_ADMIN 才能批
+        }
+
+        if (!"SUPER_ADMIN".equalsIgnoreCase(approverRole) && !"DEPT_MANAGER".equalsIgnoreCase(approverRole)) {
+            throw new BusinessException(403, HttpStatus.FORBIDDEN, "权限不足：只有管理员或部门经理可审批补签");
+        }
+
+        // 如果审批者是 DEPT_MANAGER，但申请人也是该部门负责人/经理，拒绝自批或越权审批
+        if ("DEPT_MANAGER".equalsIgnoreCase(approverRole)) {
+            if (approverEmployeeId != null && approverEmployeeId.equals(att.getEmployeeId())) {
+                throw new BusinessException(403, HttpStatus.FORBIDDEN, "部门经理的补签只能由超级管理员审批！");
+            }
+        }
+
+        LocalDateTime now = LocalDateTime.now(ZONE_SHANGHAI);
+        if (approved) {
+            att.setReplenishStatus("APPROVED");
+            att.setStatus("REPLENISHED");
+        } else {
+            att.setReplenishStatus("REJECTED");
+        }
+        att.setApproverId(approverUserId);
+        att.setApproveTime(now);
+        att.setApproveComment(comment != null ? comment.trim() : "");
+        att.setUpdateTime(now);
+
+        attendanceMapper.update(att);
+        clearPersonalCache(att.getEmployeeId());
+        clearAdminCache();
+
+        return convertToResponse(attendanceMapper.selectById(attendanceId));
+    }
+
+    @Override
+    public AttendancePageResult queryReplenishRecords(Long departmentId, Long employeeId, String replenishStatus, PageQuery query, Long operatorDeptId, String operatorRole) {
+        if ("DEPT_MANAGER".equalsIgnoreCase(operatorRole)) {
+            if (departmentId == null) {
+                departmentId = operatorDeptId;
+            }
+        }
+        List<OaAttendance> list = attendanceMapper.selectReplenishPageList(departmentId, employeeId, replenishStatus, query.offset(), query.size());
+        long total = attendanceMapper.selectReplenishCount(departmentId, employeeId, replenishStatus);
+        List<AttendanceResponse> responseList = list.stream().map(this::convertToResponse).collect(Collectors.toList());
+
+        return AttendancePageResult.of(responseList, total, query, new HashMap<>());
+    }
+
+    // ================= 查询与缓存辅助方法 =================
+
     @Override
     public AttendancePageResult queryPersonalRecords(Long employeeId, String startDate, String endDate, PageQuery query, Long requestEmployeeId) {
-        // Date handling
         LocalDate today = LocalDate.now(ZONE_SHANGHAI);
         if (startDate == null || startDate.trim().isEmpty()) {
             startDate = today.minusDays(30).toString();
@@ -178,142 +677,53 @@ public class AttendanceServiceImpl implements AttendanceService {
             endDate = today.toString();
         }
 
-        // Range constraint verification
-        try {
-            LocalDate start = LocalDate.parse(startDate);
-            LocalDate end = LocalDate.parse(endDate);
-            if (ChronoUnit.DAYS.between(start, end) > 31) {
-                throw new BusinessException(400, HttpStatus.BAD_REQUEST, "日期范围不能超过31天");
-            }
-        } catch (BusinessException be) {
-            throw be;
-        } catch (Exception e) {
-            throw new BusinessException(400, HttpStatus.BAD_REQUEST, "日期格式错误，正确格式为 yyyy-MM-dd");
-        }
-
-        boolean isOverridden = false;
-        Long targetEmployeeId = employeeId;
-        if (requestEmployeeId != null && !requestEmployeeId.equals(employeeId)) {
-            targetEmployeeId = employeeId;
-            isOverridden = true;
-        }
-
-        String cacheKey = "oa:attendance:personal:" + targetEmployeeId + ":" + startDate + ":" + endDate + ":" + query.page() + ":" + query.size();
-        AttendancePageResult cached = getFromCache(cacheKey, AttendancePageResult.class);
-
-        if (cached != null) {
-            if (isOverridden) {
-                throw new BusinessException(40302, HttpStatus.FORBIDDEN, "无权查询他人数据，已强制返回本人记录", cached);
-            }
-            return cached;
-        }
-
-        // Query database
-        List<OaAttendance> list = attendanceMapper.selectPageList(targetEmployeeId, null, startDate, endDate, null, query.offset(), query.size());
-        long total = attendanceMapper.selectCount(targetEmployeeId, null, startDate, endDate, null);
+        List<OaAttendance> list = attendanceMapper.selectPageList(employeeId, null, startDate, endDate, null, query.offset(), query.size());
+        long total = attendanceMapper.selectCount(employeeId, null, startDate, endDate, null);
 
         List<AttendanceResponse> responseList = list.stream().map(this::convertToResponse).collect(Collectors.toList());
-        Map<String, Long> statistics = getStatistics(targetEmployeeId, null, startDate, endDate, null);
-
-        AttendancePageResult result = AttendancePageResult.of(responseList, total, query, statistics);
-        saveToCache(cacheKey, result, Duration.ofMinutes(10));
-
-        if (isOverridden) {
-            throw new BusinessException(40302, HttpStatus.FORBIDDEN, "无权查询他人数据，已强制返回本人记录", result);
-        }
-
-        return result;
+        return AttendancePageResult.of(responseList, total, query, new HashMap<>());
     }
 
     @Override
     public AttendancePageResult queryAdminRecords(Long employeeId, Long departmentId, String startDate, String endDate, String status, PageQuery query) {
-        LocalDate today = LocalDate.now(ZONE_SHANGHAI);
-        if (startDate == null || startDate.trim().isEmpty()) {
-            startDate = today.minusDays(30).toString();
-        }
-        if (endDate == null || endDate.trim().isEmpty()) {
-            endDate = today.toString();
-        }
-
-        String cacheKey = "oa:attendance:admin:" + (employeeId == null ? "all" : employeeId) + ":" + (departmentId == null ? "all" : departmentId)
-                + ":" + startDate + ":" + endDate + ":" + (status == null ? "all" : status) + ":" + query.page() + ":" + query.size();
-
-        AttendancePageResult cached = getFromCache(cacheKey, AttendancePageResult.class);
-        if (cached != null) {
-            return cached;
-        }
-
-        // Query database
         List<OaAttendance> list = attendanceMapper.selectPageList(employeeId, departmentId, startDate, endDate, status, query.offset(), query.size());
         long total = attendanceMapper.selectCount(employeeId, departmentId, startDate, endDate, status);
-
         List<AttendanceResponse> responseList = list.stream().map(this::convertToResponse).collect(Collectors.toList());
-        Map<String, Long> statistics = getStatistics(employeeId, departmentId, startDate, endDate, status);
-
-        AttendancePageResult result = AttendancePageResult.of(responseList, total, query, statistics);
-        saveToCache(cacheKey, result, Duration.ofMinutes(10));
-
-        return result;
+        return AttendancePageResult.of(responseList, total, query, new HashMap<>());
     }
 
     private AttendanceResponse convertToResponse(OaAttendance attendance) {
         if (attendance == null) return null;
+        String sName = attendance.getSessionName();
+        if (sName == null || sName.isBlank() || "默认场次".equals(sName)) {
+            sName = "上午场";
+        }
         return new AttendanceResponse(
                 attendance.getId(),
                 attendance.getEmployeeId(),
                 attendance.getEmployeeName(),
+                attendance.getDepartmentName(),
                 attendance.getWorkDate(),
+                sName,
                 attendance.getCheckIn(),
                 attendance.getCheckOut(),
                 attendance.getCheckInIp(),
                 attendance.getCheckOutIp(),
+                attendance.getCheckInStartTime(),
+                attendance.getNormalCheckInEndTime(),
+                attendance.getCheckInEndTime(),
+                attendance.getNormalCheckOutStartTime(),
+                attendance.getCheckOutEndTime(),
                 attendance.getStatus(),
+                attendance.getReplenishStatus(),
+                attendance.getReplenishReason(),
+                attendance.getApproverId(),
+                attendance.getApproverName(),
+                attendance.getApproveTime(),
+                attendance.getApproveComment(),
                 attendance.getCreateTime(),
                 attendance.getUpdateTime()
         );
-    }
-
-    private Map<String, Long> getStatistics(Long employeeId, Long departmentId, String startDate, String endDate, String status) {
-        List<Map<String, Object>> statsList = attendanceMapper.countStatusByFilter(employeeId, departmentId, startDate, endDate, status);
-        Map<String, Long> stats = new HashMap<>();
-        stats.put("checkedIn", 0L);
-        stats.put("checkedOut", 0L);
-        stats.put("unchecked", 0L);
-        if (statsList != null) {
-            for (Map<String, Object> map : statsList) {
-                String state = (String) map.get("status");
-                Number countNum = (Number) map.get("count");
-                long count = countNum != null ? countNum.longValue() : 0L;
-                if ("CHECKED_IN".equals(state)) {
-                    stats.put("checkedIn", count);
-                } else if ("CHECKED_OUT".equals(state) || "LEAVE_EARLY".equals(state)) {
-                    stats.put("checkedOut", stats.getOrDefault("checkedOut", 0L) + count);
-                } else if ("UNCHECKED".equals(state)) {
-                    stats.put("unchecked", count);
-                }
-            }
-        }
-        return stats;
-    }
-
-    private void saveToCache(String key, Object value, Duration ttl) {
-        try {
-            String json = objectMapper.writeValueAsString(value);
-            redisTemplate.opsForValue().set(key, json, ttl);
-        } catch (Exception e) {
-            log.warn("Failed to save to cache: key={}", key, e);
-        }
-    }
-
-    private <T> T getFromCache(String key, Class<T> clazz) {
-        try {
-            String json = redisTemplate.opsForValue().get(key);
-            if (json == null) return null;
-            return objectMapper.readValue(json, clazz);
-        } catch (Exception e) {
-            log.warn("Failed to get from cache: key={}", key, e);
-            return null;
-        }
     }
 
     private void clearPersonalCache(Long employeeId) {
@@ -322,9 +732,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             if (keys != null && !keys.isEmpty()) {
                 redisTemplate.delete(keys);
             }
-        } catch (Exception e) {
-            log.warn("Failed to clear personal cache for employeeId={}", employeeId, e);
-        }
+        } catch (Exception ignored) {}
     }
 
     private void clearAdminCache() {
@@ -333,81 +741,13 @@ public class AttendanceServiceImpl implements AttendanceService {
             if (keys != null && !keys.isEmpty()) {
                 redisTemplate.delete(keys);
             }
-        } catch (Exception e) {
-            log.warn("Failed to clear admin cache", e);
-        }
-    }
-    @Override
-    @Transactional
-    public int publishDailyAttendance() {
-        String workDate = LocalDate.now(ZONE_SHANGHAI).toString();
-        LocalDateTime now = LocalDateTime.now(ZONE_SHANGHAI);
-        List<Long> activeEmployeeIds = attendanceMapper.selectActiveEmployeeIds();
-        log.info("Publishing daily attendance for workDate={}, activeEmployeesCount={}", workDate, activeEmployeeIds.size());
-        
-        int createdCount = 0;
-        for (Long empId : activeEmployeeIds) {
-            OaAttendance existing = attendanceMapper.selectByEmployeeAndDate(empId, workDate);
-            if (existing == null) {
-                OaAttendance attendance = new OaAttendance();
-                attendance.setEmployeeId(empId);
-                attendance.setWorkDate(workDate);
-                attendance.setStatus("UNCHECKED");
-                attendance.setCreateTime(now);
-                attendance.setUpdateTime(now);
-                try {
-                    attendanceMapper.insert(attendance);
-                    createdCount++;
-                } catch (DuplicateKeyException e) {
-                    log.debug("Attendance record already exists for employeeId={}, workDate={}", empId, workDate);
-                }
-            }
-        }
-        clearAdminCache();
-        return createdCount;
+        } catch (Exception ignored) {}
     }
 
     @Override
     @Transactional
     public AttendanceResponse saveOrUpdateAdminRecord(OaAttendance record) {
-        if (record.getEmployeeId() == null) {
-            throw new BusinessException(400, HttpStatus.BAD_REQUEST, "员工ID不能为空");
-        }
-        if (record.getWorkDate() == null || record.getWorkDate().trim().isEmpty()) {
-            throw new BusinessException(400, HttpStatus.BAD_REQUEST, "工作日期不能为空");
-        }
-        
-        ApiResult<EmployeeResponse> empResult = employeeClient.getById(record.getEmployeeId());
-        if (empResult == null || empResult.code() != 200 || empResult.data() == null) {
-            throw new BusinessException(400, HttpStatus.BAD_REQUEST, "员工不存在");
-        }
-        
-        LocalDateTime now = LocalDateTime.now(ZONE_SHANGHAI);
-        OaAttendance existing = attendanceMapper.selectByEmployeeAndDate(record.getEmployeeId(), record.getWorkDate());
-        if (existing != null) {
-            existing.setCheckIn(record.getCheckIn());
-            existing.setCheckOut(record.getCheckOut());
-            existing.setCheckInIp(record.getCheckInIp());
-            existing.setCheckOutIp(record.getCheckOutIp());
-            existing.setStatus(record.getStatus());
-            existing.setUpdateTime(now);
-            attendanceMapper.update(existing);
-            
-            clearPersonalCache(record.getEmployeeId());
-            clearAdminCache();
-            return convertToResponse(attendanceMapper.selectById(existing.getId()));
-        } else {
-            record.setCreateTime(now);
-            record.setUpdateTime(now);
-            if (record.getStatus() == null) {
-                record.setStatus("UNCHECKED");
-            }
-            attendanceMapper.insert(record);
-            
-            clearPersonalCache(record.getEmployeeId());
-            clearAdminCache();
-            return convertToResponse(attendanceMapper.selectById(record.getId()));
-        }
+        return updateAdminRecord(record.getId(), record);
     }
 
     @Override
@@ -417,19 +757,12 @@ public class AttendanceServiceImpl implements AttendanceService {
         if (existing == null) {
             throw new BusinessException(404, HttpStatus.NOT_FOUND, "考勤记录不存在");
         }
-        
         LocalDateTime now = LocalDateTime.now(ZONE_SHANGHAI);
-        existing.setCheckIn(record.getCheckIn());
-        existing.setCheckOut(record.getCheckOut());
-        existing.setCheckInIp(record.getCheckInIp());
-        existing.setCheckOutIp(record.getCheckOutIp());
-        existing.setStatus(record.getStatus());
+        if (record.getStatus() != null) existing.setStatus(record.getStatus());
+        if (record.getCheckIn() != null) existing.setCheckIn(record.getCheckIn());
+        if (record.getCheckOut() != null) existing.setCheckOut(record.getCheckOut());
         existing.setUpdateTime(now);
-        
         attendanceMapper.update(existing);
-        
-        clearPersonalCache(existing.getEmployeeId());
-        clearAdminCache();
         return convertToResponse(attendanceMapper.selectById(id));
     }
 }

@@ -38,4 +38,32 @@ public interface AttendanceMapper {
                                                   @Param("status") String status);
 
     List<Long> selectActiveEmployeeIds();
+
+    List<Long> selectActiveEmployeeIdsByDepartment(@Param("departmentId") Long departmentId);
+
+    OaAttendance selectByEmployeeDateAndSession(@Param("employeeId") Long employeeId,
+                                                @Param("workDate") String workDate,
+                                                @Param("sessionName") String sessionName);
+
+    List<OaAttendance> selectListByEmployeeAndDate(@Param("employeeId") Long employeeId,
+                                                   @Param("workDate") String workDate);
+
+    List<OaAttendance> selectReplenishPageList(@Param("departmentId") Long departmentId,
+                                               @Param("employeeId") Long employeeId,
+                                               @Param("replenishStatus") String replenishStatus,
+                                               @Param("offset") int offset,
+                                               @Param("limit") int limit);
+
+    long selectReplenishCount(@Param("departmentId") Long departmentId,
+                              @Param("employeeId") Long employeeId,
+                              @Param("replenishStatus") String replenishStatus);
+
+    int updateUncheckedRuleSnapshot(@Param("departmentId") Long departmentId,
+                                    @Param("workDate") String workDate,
+                                    @Param("sessionName") String sessionName,
+                                    @Param("checkInStartTime") String checkInStartTime,
+                                    @Param("normalCheckInEndTime") String normalCheckInEndTime,
+                                    @Param("checkInEndTime") String checkInEndTime,
+                                    @Param("normalCheckOutStartTime") String normalCheckOutStartTime,
+                                    @Param("checkOutEndTime") String checkOutEndTime);
 }

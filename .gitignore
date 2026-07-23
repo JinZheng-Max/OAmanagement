@@ -9,3 +9,5 @@ oa-web/playwright-report/
 .idea/
 .vscode/
 sql/update.sql
+data/
+dump.rdb

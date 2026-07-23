@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wut.practicum.mapper.OaAiSourceMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO oa_ai_source (title, category, description,
+            original_file_name, stored_file_name, file_url, file_extension, mime_type, file_size, file_hash, storage_provider,
+            extracted_text, parse_status, index_status, error_message,
+            access_scope, access_department_id, min_role_level,
+            status, version, uploader_id)
+        VALUES (#{title}, #{category}, #{description},
+            #{originalFileName}, #{storedFileName}, #{fileUrl}, #{fileExtension}, #{mimeType}, #{fileSize}, #{fileHash}, #{storageProvider},
+            #{extractedText}, #{parseStatus}, #{indexStatus}, #{errorMessage},
+            #{accessScope}, #{accessDepartmentId}, #{minRoleLevel},
+            #{status}, #{version}, #{uploaderId})
+    </insert>
+
+    <select id="selectById" resultType="com.wut.practicum.entity.OaAiSource">
+        SELECT * FROM oa_ai_source WHERE id = #{id}
+    </select>
+
+    <select id="selectList" resultType="com.wut.practicum.entity.OaAiSource" parameterType="com.wut.practicum.entity.OaAiSource">
+        SELECT id, title, category, description,
+            original_file_name, stored_file_name, file_url, file_extension, mime_type, file_size, file_hash, storage_provider,
+            parse_status, index_status, error_message,
+            access_scope, access_department_id, min_role_level,
+            status, version, uploader_id, create_time, update_time
+        FROM oa_ai_source
+        <where>
+            <if test="title != null and title != ''">AND title LIKE CONCAT('%', #{title}, '%')</if>
+            <if test="category != null and category != ''">AND category = #{category}</if>
+            <if test="status != null and status != ''">AND status = #{status}</if>
+            <if test="uploaderId != null">AND uploader_id = #{uploaderId}</if>
+        </where>
+        ORDER BY create_time DESC
+    </select>
+
+    <update id="updateById">
+        UPDATE oa_ai_source
+        <set>
+            <if test="title != null">title = #{title},</if>
+            <if test="category != null">category = #{category},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="parseStatus != null">parse_status = #{parseStatus},</if>
+            <if test="indexStatus != null">index_status = #{indexStatus},</if>
+            <if test="errorMessage != null">error_message = #{errorMessage},</if>
+            <if test="accessScope != null">access_scope = #{accessScope},</if>
+            <if test="accessDepartmentId != null">access_department_id = #{accessDepartmentId},</if>
+            <if test="minRoleLevel != null">min_role_level = #{minRoleLevel},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="version != null">version = #{version},</if>
+            <if test="extractedText != null">extracted_text = #{extractedText},</if>
+            <if test="errorMessage == null">error_message = NULL,</if>
+            <if test="indexStatus != null or parseStatus != null">update_time = NOW()</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- MySQL二次鉴权: 只有当文档在MySQL中确实有权时，才认可Chroma返回的片段 -->
+    <select id="selectAuthorizedSources" resultType="com.wut.practicum.entity.OaAiSource">
+        SELECT id, title, version, access_scope, access_department_id, min_role_level
+        FROM oa_ai_source
+        WHERE id IN
+            <foreach item="id" collection="ids" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+          AND status = 'ENABLED'
+          AND parse_status = 'SUCCESS'
+          AND index_status = 'SUCCESS'
+          AND (
+              #{requestRole} = 'SUPER_ADMIN'
+              OR (
+                  #{requestRoleLevel} >= min_role_level
+                  AND (
+                      access_scope = 'ALL'
+                      OR (
+                          access_scope = 'DEPARTMENT'
+                          AND FIND_IN_SET(#{requestDepartmentId}, access_department_id) > 0
+                      )
+                  )
+              )
+          )
+    </select>
+
+    <update id="updateAccessFields">
+        UPDATE oa_ai_source
+        SET access_scope = #{accessScope},
+            access_department_id = #{accessDepartmentId},
+            min_role_level = #{minRoleLevel},
+            update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectByFileHash" resultType="com.wut.practicum.entity.OaAiSource">
+        SELECT * FROM oa_ai_source WHERE file_hash = #{fileHash} LIMIT 1
+    </select>
+
+</mapper>

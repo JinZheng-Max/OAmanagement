@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wut.practicum.mapper.OaAiSourceChunkMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO oa_ai_source_chunk
+            (source_id, chunk_no, section_title, page_no, content_text, content_hash, token_count, vector_key, metadata_json, status)
+        VALUES
+            (#{sourceId}, #{chunkNo}, #{sectionTitle}, #{pageNo}, #{contentText}, #{contentHash}, #{tokenCount}, #{vectorKey}, #{metadataJson}, #{status})
+    </insert>
+
+    <insert id="insertBatch">
+        INSERT INTO oa_ai_source_chunk
+            (source_id, chunk_no, section_title, page_no, content_text, content_hash, token_count, vector_key, metadata_json, status)
+        VALUES
+            <foreach item="c" collection="list" separator=",">
+            (#{c.sourceId}, #{c.chunkNo}, #{c.sectionTitle}, #{c.pageNo}, #{c.contentText}, #{c.contentHash}, #{c.tokenCount}, #{c.vectorKey}, #{c.metadataJson}, #{c.status})
+            </foreach>
+    </insert>
+
+    <select id="selectBySourceId" resultType="com.wut.practicum.entity.OaAiSourceChunk">
+        SELECT * FROM oa_ai_source_chunk WHERE source_id = #{sourceId} ORDER BY chunk_no ASC
+    </select>
+
+    <update id="updateStatusBySourceId">
+        UPDATE oa_ai_source_chunk SET status = #{status} WHERE source_id = #{sourceId}
+    </update>
+
+    <delete id="deleteBySourceId">
+        DELETE FROM oa_ai_source_chunk WHERE source_id = #{sourceId}
+    </delete>
+
+    <select id="selectByVectorKeys" resultType="com.wut.practicum.entity.OaAiSourceChunk">
+        SELECT * FROM oa_ai_source_chunk WHERE vector_key IN
+            <foreach item="key" collection="keys" open="(" separator="," close=")">
+                #{key}
+            </foreach>
+    </select>
+
+</mapper>

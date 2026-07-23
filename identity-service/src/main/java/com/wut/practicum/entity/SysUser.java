@@ -16,7 +16,7 @@ public class SysUser {
     @Schema(description = "密码哈希值(BCrypt)")
     private String passwordHash;
 
-    @Schema(description = "角色: ADMIN/EMPLOYEE")
+    @Schema(description = "角色: SUPER_ADMIN/DEPT_MANAGER/EMPLOYEE")
     private String role;
 
     @Schema(description = "状态: 1-启用 0-停用")

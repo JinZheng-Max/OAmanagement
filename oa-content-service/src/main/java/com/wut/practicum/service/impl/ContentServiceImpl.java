@@ -51,9 +51,15 @@ public class ContentServiceImpl implements ContentService {
 
     // ======================== 管理员操作 ========================
 
+    private boolean isSuperAdminRole(String role) {
+        if (role == null) return false;
+        String r = role.toUpperCase();
+        return r.contains("SUPER_ADMIN") || r.contains("ROLE_ADMIN") || r.equals("ADMIN");
+    }
+
     @Override
     @Transactional
-    public ContentDetailVO saveDraft(ContentSaveDTO dto, Long operatorId) {
+    public ContentDetailVO saveDraft(ContentSaveDTO dto, Long operatorId, String role) {
         // 1. XSS / 脚本校验
         if (XssUtils.containsScript(dto.getBody())) {
             throw new BusinessException(400, HttpStatus.BAD_REQUEST, "正文中包含可执行脚本，保存被拒绝");
@@ -83,6 +89,9 @@ public class ContentServiceImpl implements ContentService {
             if (entity == null) {
                 throw new BusinessException(404, HttpStatus.NOT_FOUND, "内容不存在，id=" + dto.getId());
             }
+            if (!isSuperAdminRole(role) && entity.getPublisherId() != null && !entity.getPublisherId().equals(operatorId)) {
+                throw new BusinessException(403, HttpStatus.FORBIDDEN, "只允许编辑自己创建的内容/草稿");
+            }
             if ("PUBLISHED".equalsIgnoreCase(entity.getStatus())) {
                 // 编辑已发布内容：版本+1，保持发布状态，更新 ES
                 entity.setVersion(entity.getVersion() + 1);
@@ -105,10 +114,13 @@ public class ContentServiceImpl implements ContentService {
 
     @Override
     @Transactional
-    public ContentDetailVO publish(Long id, Long operatorId) {
+    public ContentDetailVO publish(Long id, Long operatorId, String role) {
         ContentEntity entity = contentMapper.selectById(id);
         if (entity == null) {
             throw new BusinessException(404, HttpStatus.NOT_FOUND, "内容不存在，id=" + id);
+        }
+        if (!isSuperAdminRole(role) && entity.getPublisherId() != null && !entity.getPublisherId().equals(operatorId)) {
+            throw new BusinessException(403, HttpStatus.FORBIDDEN, "只允许发布自己创建的内容");
         }
         if ("PUBLISHED".equalsIgnoreCase(entity.getStatus())) {
             throw new BusinessException(400, HttpStatus.BAD_REQUEST, "内容已经处于发布状态");
@@ -132,10 +144,13 @@ public class ContentServiceImpl implements ContentService {
 
     @Override
     @Transactional
-    public void unpublish(Long id, Long operatorId) {
+    public void unpublish(Long id, Long operatorId, String role) {
         ContentEntity entity = contentMapper.selectById(id);
         if (entity == null) {
             throw new BusinessException(404, HttpStatus.NOT_FOUND, "内容不存在，id=" + id);
+        }
+        if (!isSuperAdminRole(role) && entity.getPublisherId() != null && !entity.getPublisherId().equals(operatorId)) {
+            throw new BusinessException(403, HttpStatus.FORBIDDEN, "只允许下架自己发布的内容");
         }
 
         entity.setStatus("UNPUBLISHED");
@@ -152,10 +167,13 @@ public class ContentServiceImpl implements ContentService {
 
     @Override
     @Transactional
-    public void deleteDraft(Long id, Long operatorId) {
+    public void deleteDraft(Long id, Long operatorId, String role) {
         ContentEntity entity = contentMapper.selectById(id);
         if (entity == null) {
             throw new BusinessException(404, HttpStatus.NOT_FOUND, "内容不存在，id=" + id);
+        }
+        if (!isSuperAdminRole(role) && entity.getPublisherId() != null && !entity.getPublisherId().equals(operatorId)) {
+            throw new BusinessException(403, HttpStatus.FORBIDDEN, "只允许删除自己创建的草稿");
         }
         if (!"DRAFT".equalsIgnoreCase(entity.getStatus())) {
             throw new BusinessException(400, HttpStatus.BAD_REQUEST, "只允许删除草稿，当前状态: " + entity.getStatus());
@@ -164,13 +182,16 @@ public class ContentServiceImpl implements ContentService {
     }
 
     @Override
-    public PageResult<ContentDetailVO> adminList(ContentQueryDTO query) {
+    public PageResult<ContentDetailVO> adminList(ContentQueryDTO query, Long operatorId, String role) {
         int page = Math.max(1, query.getPage() != null ? query.getPage() : 1);
         int size = Math.min(100, Math.max(1, query.getSize() != null ? query.getSize() : 10));
         int offset = (page - 1) * size;
 
-        List<ContentEntity> entities = contentMapper.selectList(query.getType(), query.getCategory(), query.getStatus(), null, true, offset, size);
-        long total = contentMapper.countList(query.getType(), query.getCategory(), query.getStatus(), null, true);
+        boolean isSuperAdmin = isSuperAdminRole(role);
+        Long publisherFilter = isSuperAdmin ? null : operatorId;
+
+        List<ContentEntity> entities = contentMapper.selectList(null, query.getType(), query.getCategory(), query.getStatus(), publisherFilter, null, true, offset, size);
+        long total = contentMapper.countList(null, query.getType(), query.getCategory(), query.getStatus(), publisherFilter, null, true);
         List<ContentDetailVO> voList = entities.stream().map(this::convertToVO).collect(Collectors.toList());
         return new PageResult<>(voList, total, page, size);
     }
@@ -184,8 +205,8 @@ public class ContentServiceImpl implements ContentService {
         int offset = (page - 1) * size;
 
         // 员工只能看 PUBLISHED
-        List<ContentEntity> entities = contentMapper.selectList(query.getType(), query.getCategory(), "PUBLISHED", deptId, false, offset, size);
-        long total = contentMapper.countList(query.getType(), query.getCategory(), "PUBLISHED", deptId, false);
+        List<ContentEntity> entities = contentMapper.selectList(null, query.getType(), query.getCategory(), "PUBLISHED", null, deptId, false, offset, size);
+        long total = contentMapper.countList(null, query.getType(), query.getCategory(), "PUBLISHED", null, deptId, false);
         List<ContentDetailVO> voList = entities.stream().map(this::convertToVO).collect(Collectors.toList());
         return new PageResult<>(voList, total, page, size);
     }

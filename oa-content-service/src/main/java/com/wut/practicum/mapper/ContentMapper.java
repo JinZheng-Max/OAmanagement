@@ -19,17 +19,21 @@ public interface ContentMapper {
 
     ContentEntity selectByTitle(@Param("title") String title);
 
-    List<ContentEntity> selectList(@Param("type") String type,
+    List<ContentEntity> selectList(@Param("keyword") String keyword,
+                                   @Param("type") String type,
                                    @Param("category") String category,
                                    @Param("status") String status,
+                                   @Param("publisherId") Long publisherId,
                                    @Param("deptId") Long deptId,
                                    @Param("isAdmin") boolean isAdmin,
                                    @Param("offset") int offset,
                                    @Param("limit") int limit);
 
-    long countList(@Param("type") String type,
+    long countList(@Param("keyword") String keyword,
+                   @Param("type") String type,
                    @Param("category") String category,
                    @Param("status") String status,
+                   @Param("publisherId") Long publisherId,
                    @Param("deptId") Long deptId,
                    @Param("isAdmin") boolean isAdmin);
 

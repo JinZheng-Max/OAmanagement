@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wut.practicum.mapper.OaAttendanceRuleMapper">
+
+    <resultMap id="RuleMap" type="com.wut.practicum.entity.OaAttendanceRule">
+        <id property="id" column="id"/>
+        <result property="departmentId" column="department_id"/>
+        <result property="departmentName" column="department_name"/>
+        <result property="sessionName" column="session_name"/>
+        <result property="checkInStartTime" column="check_in_start_time"/>
+        <result property="normalCheckInEndTime" column="normal_check_in_end_time"/>
+        <result property="checkInEndTime" column="check_in_end_time"/>
+        <result property="normalCheckOutStartTime" column="normal_check_out_start_time"/>
+        <result property="checkOutEndTime" column="check_out_end_time"/>
+        <result property="enabled" column="enabled"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <select id="selectByDepartmentId" resultMap="RuleMap">
+        SELECT r.*, d.name AS department_name
+        FROM sys_department_attendance_rule r
+        LEFT JOIN sys_department d ON r.department_id = d.id
+        WHERE r.department_id = #{departmentId}
+        ORDER BY r.id ASC
+    </select>
+
+    <select id="selectAllEnabled" resultMap="RuleMap">
+        SELECT r.*, d.name AS department_name
+        FROM sys_department_attendance_rule r
+        LEFT JOIN sys_department d ON r.department_id = d.id
+        WHERE r.enabled = 1
+        ORDER BY r.department_id ASC, r.id ASC
+    </select>
+
+    <select id="selectById" resultMap="RuleMap">
+        SELECT r.*, d.name AS department_name
+        FROM sys_department_attendance_rule r
+        LEFT JOIN sys_department d ON r.department_id = d.id
+        WHERE r.id = #{id}
+    </select>
+
+    <select id="selectByDeptAndSession" resultMap="RuleMap">
+        SELECT r.*, d.name AS department_name
+        FROM sys_department_attendance_rule r
+        LEFT JOIN sys_department d ON r.department_id = d.id
+        WHERE r.department_id = #{departmentId} AND r.session_name = #{sessionName}
+        LIMIT 1
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sys_department_attendance_rule
+            (`department_id`, `session_name`, `check_in_start_time`, `normal_check_in_end_time`, `check_in_end_time`, `normal_check_out_start_time`, `check_out_end_time`, `enabled`)
+        VALUES
+            (#{departmentId}, #{sessionName}, #{checkInStartTime}, #{normalCheckInEndTime}, #{checkInEndTime}, #{normalCheckOutStartTime}, #{checkOutEndTime}, #{enabled})
+    </insert>
+
+    <update id="update">
+        UPDATE sys_department_attendance_rule
+        <set>
+            <if test="sessionName != null">session_name = #{sessionName},</if>
+            <if test="checkInStartTime != null">check_in_start_time = #{checkInStartTime},</if>
+            <if test="normalCheckInEndTime != null">normal_check_in_end_time = #{normalCheckInEndTime},</if>
+            <if test="checkInEndTime != null">check_in_end_time = #{checkInEndTime},</if>
+            <if test="normalCheckOutStartTime != null">normal_check_out_start_time = #{normalCheckOutStartTime},</if>
+            <if test="checkOutEndTime != null">check_out_end_time = #{checkOutEndTime},</if>
+            <if test="enabled != null">enabled = #{enabled},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM sys_department_attendance_rule WHERE id = #{id}
+    </delete>
+
+    <update id="createTableIfNotExists">
+        CREATE TABLE IF NOT EXISTS `sys_department_attendance_rule` (
+            `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+            `department_id` BIGINT NOT NULL COMMENT '所属部门ID',
+            `session_name` VARCHAR(50) NOT NULL COMMENT '考勤场次名称',
+            `check_in_start_time` VARCHAR(10) NOT NULL COMMENT '签到允许开始时间',
+            `normal_check_in_end_time` VARCHAR(10) NOT NULL COMMENT '正常签到截止时间',
+            `check_in_end_time` VARCHAR(10) NOT NULL COMMENT '签到最晚截止时间',
+            `normal_check_out_start_time` VARCHAR(10) NOT NULL COMMENT '正常签退最早时间',
+            `check_out_end_time` VARCHAR(10) NOT NULL COMMENT '签退最晚截止时间',
+            `enabled` INT DEFAULT 1 COMMENT '规则启用状态',
+            `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+            `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY `uk_dept_session` (`department_id`, `session_name`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    </update>
+
+</mapper>

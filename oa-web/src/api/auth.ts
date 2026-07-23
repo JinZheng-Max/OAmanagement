@@ -4,7 +4,7 @@ export interface LoginResponse {
   token: string
   tokenType: 'Bearer'
   expiresIn: number
-  userInfo: { id: number; username: string; role: 'ADMIN' | 'EMPLOYEE'; employeeId: number | null }
+  userInfo: { id: number; username: string; role: 'SUPER_ADMIN' | 'DEPT_MANAGER' | 'EMPLOYEE'; employeeId: number | null }
 }
 
 /** 个人信息（含员工档案） */

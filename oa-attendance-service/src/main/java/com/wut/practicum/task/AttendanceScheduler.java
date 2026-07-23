@@ -14,15 +14,15 @@ public class AttendanceScheduler {
     private final AttendanceService attendanceService;
 
     /**
-     * 每天早上 9:00 自动发布签到记录
+     * 每天凌晨 00:05 自动触发各部门独立考勤任务生成
      */
-    @Scheduled(cron = "0 0 9 * * ?")
+    @Scheduled(cron = "0 5 0 * * ?")
     public void publishDailyAttendance() {
         try {
-            int count = attendanceService.publishDailyAttendance();
-            log.info("Successfully published daily attendance records. Created count: {}", count);
+            int count = attendanceService.autoPublishAllActiveDepartmentTasks();
+            log.info("【定时任务】成功按各部门规则发布今日考勤任务，创建任务总数: {}", count);
         } catch (Exception e) {
-            log.error("Failed to publish daily attendance records", e);
+            log.error("【定时任务】按部门规则发布考勤任务失败", e);
         }
     }
 }

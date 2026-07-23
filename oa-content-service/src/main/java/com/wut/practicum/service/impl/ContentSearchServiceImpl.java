@@ -117,13 +117,13 @@ public class ContentSearchServiceImpl implements ContentSearchService {
 
     @Override
     public PageResult<ContentDetailVO> search(ContentSearchDTO searchDTO, Long currentUserId, String currentRole, Long userDeptId) {
-        boolean isAdmin = "SUPER_ADMIN".equalsIgnoreCase(currentRole) || "DEPT_MANAGER".equalsIgnoreCase(currentRole) || "ADMIN".equalsIgnoreCase(currentRole) || "ROLE_ADMIN".equalsIgnoreCase(currentRole);
+        boolean isSuperAdmin = "SUPER_ADMIN".equalsIgnoreCase(currentRole) || ("ADMIN".equalsIgnoreCase(currentRole) && !"DEPT_MANAGER".equalsIgnoreCase(currentRole)) || "ROLE_ADMIN".equalsIgnoreCase(currentRole);
         int page = Math.max(1, searchDTO.getPage() != null ? searchDTO.getPage() : 1);
         int size = Math.min(100, Math.max(1, searchDTO.getSize() != null ? searchDTO.getSize() : 10));
         int offset = (page - 1) * size;
 
         if (elasticsearchOperations == null) {
-            return searchFallbackMysql(searchDTO, isAdmin, userDeptId, page, size, offset);
+            return searchFallbackMysql(searchDTO, isSuperAdmin, userDeptId, page, size, offset);
         }
 
         try {
@@ -147,12 +147,15 @@ public class ContentSearchServiceImpl implements ContentSearchService {
                     b.must(m -> m.term(t -> t.field("category").value(searchDTO.getCategory())));
                 }
 
-                // 权限过滤: 非管理员只能看 ALL 范围或本人部门资料
-                if (!isAdmin) {
+                // 权限过滤: 非超级管理员只能看 ALL 范围、本人部门资料、或自己创建的内容
+                if (!isSuperAdmin) {
                     b.must(sb -> sb.bool(sbb -> {
                         sbb.should(s -> s.term(t -> t.field("scope").value("ALL")));
                         if (userDeptId != null) {
                             sbb.should(s -> s.term(t -> t.field("accessDepartmentId").value(userDeptId)));
+                        }
+                        if (currentUserId != null) {
+                            sbb.should(s -> s.term(t -> t.field("publisherId").value(currentUserId)));
                         }
                         return sbb;
                     }));
@@ -164,15 +167,26 @@ public class ContentSearchServiceImpl implements ContentSearchService {
             // 分页与排序 (相关度得分优先，再按发布时间降序)
             queryBuilder.withPageable(PageRequest.of(page - 1, size, Sort.by(Sort.Direction.DESC, "_score", "publishTime")));
 
-            // 关键词高亮
+            // 关键词高亮 (正文只截取 150 字符摘要，避免整篇长文占满屏幕)
+            org.springframework.data.elasticsearch.core.query.highlight.HighlightFieldParameters bodyHighlightParams =
+                    org.springframework.data.elasticsearch.core.query.highlight.HighlightFieldParameters.builder()
+                            .withFragmentSize(150)
+                            .withNumberOfFragments(1)
+                            .build();
+
             Highlight highlight = new Highlight(List.of(
                     new HighlightField("title"),
-                    new HighlightField("body")
+                    new HighlightField("body", bodyHighlightParams)
             ));
             queryBuilder.withHighlightQuery(new HighlightQuery(highlight, ContentEsDoc.class));
 
             NativeQuery nativeQuery = queryBuilder.build();
             SearchHits<ContentEsDoc> searchHits = elasticsearchOperations.search(nativeQuery, ContentEsDoc.class);
+
+            // 当 ES 尚未全量索引数据导致命中数为 0 时，平滑降级至 MySQL LIKE 模糊检索
+            if (searchHits.getTotalHits() == 0 && kw != null && !kw.trim().isEmpty()) {
+                return searchFallbackMysql(searchDTO, isSuperAdmin, userDeptId, page, size, offset);
+            }
 
             List<ContentDetailVO> voList = new ArrayList<>();
             for (SearchHit<ContentEsDoc> hit : searchHits.getSearchHits()) {
@@ -190,9 +204,7 @@ public class ContentSearchServiceImpl implements ContentSearchService {
                 if (highlightFields.containsKey("body") && !highlightFields.get("body").isEmpty()) {
                     vo.setHighlightBody(XssUtils.sanitizeHighlight(highlightFields.get("body").get(0)));
                 } else {
-                    String plainBody = vo.getBody() != null ? vo.getBody() : "";
-                    String snippet = plainBody.length() > 100 ? plainBody.substring(0, 100) + "..." : plainBody;
-                    vo.setHighlightBody(XssUtils.escapeHtml(snippet));
+                    vo.setHighlightBody(buildSnippetAroundKeyword(vo.getBody(), kw, 140));
                 }
 
                 voList.add(vo);
@@ -203,15 +215,14 @@ public class ContentSearchServiceImpl implements ContentSearchService {
         } catch (Throwable e) {
             log.warn("ES 检索异常或服务不可用，触发平滑降级至 MySQL 全文/模糊匹配: {}", e.getMessage());
             // 降级方案：回源 MySQL 分页模糊匹配
-            return searchFallbackMysql(searchDTO, isAdmin, userDeptId, page, size, offset);
+            return searchFallbackMysql(searchDTO, isSuperAdmin, userDeptId, page, size, offset);
         }
     }
 
-    private PageResult<ContentDetailVO> searchFallbackMysql(ContentSearchDTO searchDTO, boolean isAdmin, Long userDeptId, int page, int size, int offset) {
-        List<ContentEntity> entities = contentMapper.selectList(searchDTO.getType(), searchDTO.getCategory(), "PUBLISHED", userDeptId, isAdmin, offset, size);
-        long total = contentMapper.countList(searchDTO.getType(), searchDTO.getCategory(), "PUBLISHED", userDeptId, isAdmin);
-
+    private PageResult<ContentDetailVO> searchFallbackMysql(ContentSearchDTO searchDTO, boolean isSuperAdmin, Long userDeptId, int page, int size, int offset) {
         String kw = searchDTO.getKeyword();
+        List<ContentEntity> entities = contentMapper.selectList(kw, searchDTO.getType(), searchDTO.getCategory(), "PUBLISHED", null, userDeptId, isSuperAdmin, offset, size);
+        long total = contentMapper.countList(kw, searchDTO.getType(), searchDTO.getCategory(), "PUBLISHED", null, userDeptId, isSuperAdmin);
         List<ContentDetailVO> voList = entities.stream().map(entity -> {
             ContentDetailVO vo = convertEntityToVO(entity);
             if (kw != null && !kw.isEmpty()) {
@@ -221,24 +232,39 @@ public class ContentSearchServiceImpl implements ContentSearchService {
                 } else {
                     vo.setHighlightTitle(XssUtils.escapeHtml(vo.getTitle()));
                 }
-
-                if (vo.getBody() != null && vo.getBody().contains(kw)) {
-                    vo.setHighlightBody(XssUtils.escapeHtml(vo.getBody()).replace(safeKw, "<em class=\"highlight\">" + safeKw + "</em>"));
-                } else {
-                    String plainBody = vo.getBody() != null ? vo.getBody() : "";
-                    String snippet = plainBody.length() > 100 ? plainBody.substring(0, 100) + "..." : plainBody;
-                    vo.setHighlightBody(XssUtils.escapeHtml(snippet));
-                }
+                vo.setHighlightBody(buildSnippetAroundKeyword(vo.getBody(), kw, 140));
             } else {
                 vo.setHighlightTitle(XssUtils.escapeHtml(vo.getTitle()));
-                String plainBody = vo.getBody() != null ? vo.getBody() : "";
-                String snippet = plainBody.length() > 100 ? plainBody.substring(0, 100) + "..." : plainBody;
-                vo.setHighlightBody(XssUtils.escapeHtml(snippet));
+                vo.setHighlightBody(buildSnippetAroundKeyword(vo.getBody(), null, 140));
             }
             return vo;
         }).collect(Collectors.toList());
 
         return new PageResult<>(voList, total, page, size);
+    }
+
+    private String buildSnippetAroundKeyword(String body, String kw, int maxLen) {
+        if (body == null || body.isBlank()) {
+            return "";
+        }
+        String clean = body.replaceAll("<[^>]*>", "").replaceAll("\\s+", " ").trim();
+        if (kw == null || kw.isBlank()) {
+            return clean.length() > maxLen ? clean.substring(0, maxLen) + "..." : clean;
+        }
+        int idx = clean.toLowerCase().indexOf(kw.toLowerCase());
+        if (idx == -1) {
+            return clean.length() > maxLen ? clean.substring(0, maxLen) + "..." : clean;
+        }
+        int start = Math.max(0, idx - 40);
+        int end = Math.min(clean.length(), idx + kw.length() + 100);
+        String prefix = start > 0 ? "..." : "";
+        String suffix = end < clean.length() ? "..." : "";
+        String sub = clean.substring(start, end);
+
+        String safeKw = XssUtils.escapeHtml(kw);
+        String escapedSub = XssUtils.escapeHtml(sub);
+        String highlighted = escapedSub.replaceAll("(?i)" + java.util.regex.Pattern.quote(safeKw), "<em class=\"highlight\">" + safeKw + "</em>");
+        return prefix + highlighted + suffix;
     }
 
     private ContentEsDoc buildEsDoc(ContentEntity content) {

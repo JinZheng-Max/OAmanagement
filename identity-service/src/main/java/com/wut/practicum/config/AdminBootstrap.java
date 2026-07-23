@@ -34,7 +34,7 @@ public class AdminBootstrap implements ApplicationRunner {
             SysUser user = new SysUser();
             user.setUsername(username);
             user.setPasswordHash(passwordEncoder.encode(password));
-            user.setRole("ADMIN");
+            user.setRole("SUPER_ADMIN");
             user.setStatus(1);
             userMapper.insertUser(user);
         }

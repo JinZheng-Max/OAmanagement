@@ -19,6 +19,7 @@ const router = createRouter({
         },
         /** 个人信息 */
         { path: 'profile', name: 'profile', component: () => import('../views/profile/ProfileView.vue') },
+
         /** 我的部门 */
         { path: 'my-department', name: 'myDepartment', component: () => import('../views/my-dept/MyDepartmentView.vue') },
         /** 部门管理（仅超级管理员） */
@@ -39,6 +40,12 @@ const router = createRouter({
           name: 'employees',
           component: EmployeeListView,
         },
+          /** 请假审批 */
+          { path: 'leaves', name: 'leaves', component: () => import('../views/leave/LeaveListView.vue') },
+        /** AI 智能问答 */
+        { path: 'ai-chat', name: 'aiChat', component: () => import('../views/ai/AiChatView.vue') },
+        /** AI 知识库管理 */
+        { path: 'ai-sources', name: 'aiSources', component: () => import('../views/ai/AiSourceView.vue') },
         /** 考勤管理 */
         {
           path: 'attendance',

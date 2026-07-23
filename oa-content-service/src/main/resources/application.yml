@@ -54,3 +54,25 @@ mybatis:
 oa:
   security:
     jwt-secret: ${JWT_SECRET}
+
+rag:
+  embedding:
+    base-url: http://localhost:8080
+    model: BAAI/bge-small-zh-v1.5
+    dimension: 512
+  chroma:
+    base-url: http://localhost:8000
+    tenant: default_tenant
+    database: default_database
+    collection: enterprise_knowledge
+    retrieve-count: 15
+  deepseek:
+    base-url: https://api.deepseek.com
+    api-key: ${DEEPSEEK_API_KEY}
+    model: deepseek-v4-flash
+    timeout-seconds: 90
+  chunk:
+    size: 500
+    overlap: 80
+  storage:
+    upload-dir: ./data/ai-uploads

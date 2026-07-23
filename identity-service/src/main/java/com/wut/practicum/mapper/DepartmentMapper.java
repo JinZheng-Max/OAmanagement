@@ -14,6 +14,7 @@ public interface DepartmentMapper {
     SysDepartment selectById(@Param("id") Long id);
     SysDepartment selectByCode(@Param("code") String code);
     SysDepartment selectByLeaderId(@Param("leaderId") Long leaderId);
+    SysDepartment selectByName(@Param("name") String name);
     int insert(SysDepartment dept);
     int update(SysDepartment dept);
     int updateStatus(@Param("id") Long id, @Param("status") Integer status);

@@ -108,8 +108,8 @@ async function handleChangePassword() {
           <h1>{{ emp.name }}</h1>
           <div class="header-tags">
             <el-tag>{{ emp.employeeNo }}</el-tag>
-            <el-tag :type="profile.role === 'ADMIN' ? 'danger' : 'info'">
-              {{ profile.role === 'ADMIN' ? '管理员' : '普通员工' }}
+            <el-tag :type="profile.role === 'SUPER_ADMIN' ? 'danger' : 'info'">
+              {{ profile.role === 'SUPER_ADMIN' ? '总管理员' : profile.role === 'DEPT_MANAGER' ? '部门经理' : '普通员工' }}
             </el-tag>
             <el-tag :type="emp.status === 1 ? 'success' : 'danger'">
               {{ emp.status === 1 ? '在职' : '离职' }}

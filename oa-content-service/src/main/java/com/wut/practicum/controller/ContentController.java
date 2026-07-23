@@ -2,6 +2,7 @@ package com.wut.practicum.controller;
 
 import com.wut.practicum.client.EmployeeClient;
 import com.wut.practicum.common.ApiResult;
+import com.wut.practicum.common.BusinessException;
 import com.wut.practicum.dto.*;
 import com.wut.practicum.security.JwtService;
 import com.wut.practicum.service.ContentSearchService;
@@ -10,6 +11,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -40,7 +42,16 @@ public class ContentController {
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'DEPT_MANAGER', 'ADMIN')")
     public ApiResult<ContentDetailVO> saveDraft(@Valid @RequestBody ContentSaveDTO dto) {
         JwtService.UserPrincipal user = getCurrentUser();
-        ContentDetailVO vo = contentService.saveDraft(dto, user.userId());
+        // 部门管理员权限限制：只能发本部门，强制设为 DEPARTMENT 范围并绑定本部门ID
+        if (isDeptManagerOnly(user.role())) {
+            Long deptId = getDepartmentId(user);
+            if (deptId == null) {
+                throw new BusinessException(400, HttpStatus.BAD_REQUEST, "无法获取您的所属部门，部门管理员禁止发布全公司/跨部门公告");
+            }
+            dto.setScope("DEPARTMENT");
+            dto.setAccessDepartmentId(deptId);
+        }
+        ContentDetailVO vo = contentService.saveDraft(dto, user.userId(), user.role());
         return ApiResult.success("草稿保存成功", vo);
     }
 
@@ -49,7 +60,7 @@ public class ContentController {
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'DEPT_MANAGER', 'ADMIN')")
     public ApiResult<Void> deleteDraft(@PathVariable("id") Long id) {
         JwtService.UserPrincipal user = getCurrentUser();
-        contentService.deleteDraft(id, user.userId());
+        contentService.deleteDraft(id, user.userId(), user.role());
         return ApiResult.success("草稿删除成功", null);
     }
 
@@ -60,7 +71,7 @@ public class ContentController {
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'DEPT_MANAGER', 'ADMIN')")
     public ApiResult<ContentDetailVO> publish(@PathVariable("id") Long id) {
         JwtService.UserPrincipal user = getCurrentUser();
-        ContentDetailVO vo = contentService.publish(id, user.userId());
+        ContentDetailVO vo = contentService.publish(id, user.userId(), user.role());
         return ApiResult.success("发布成功，已同步 ES 索引与缓存", vo);
     }
 
@@ -69,7 +80,7 @@ public class ContentController {
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'DEPT_MANAGER', 'ADMIN')")
     public ApiResult<Void> unpublish(@PathVariable("id") Long id) {
         JwtService.UserPrincipal user = getCurrentUser();
-        contentService.unpublish(id, user.userId());
+        contentService.unpublish(id, user.userId(), user.role());
         return ApiResult.success("下架成功，已从 ES 索引移除", null);
     }
 
@@ -77,7 +88,8 @@ public class ContentController {
     @GetMapping("/admin/page")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'DEPT_MANAGER', 'ADMIN')")
     public ApiResult<PageResult<ContentDetailVO>> adminList(ContentQueryDTO query) {
-        PageResult<ContentDetailVO> page = contentService.adminList(query);
+        JwtService.UserPrincipal user = getCurrentUser();
+        PageResult<ContentDetailVO> page = contentService.adminList(query, user.userId(), user.role());
         return ApiResult.success(page);
     }
 
@@ -106,9 +118,9 @@ public class ContentController {
     @GetMapping("/{id}")
     public ApiResult<ContentDetailVO> getDetail(@PathVariable("id") Long id) {
         JwtService.UserPrincipal user = getCurrentUser();
-        boolean isAdmin = isAdminRole(user.role());
+        boolean isSuperAdmin = !isDeptManagerOnly(user.role()) && isAdminRole(user.role());
         Long deptId = getDepartmentId(user);
-        ContentDetailVO vo = contentService.getDetail(id, user.employeeId(), deptId, isAdmin);
+        ContentDetailVO vo = contentService.getDetail(id, user.employeeId(), deptId, isSuperAdmin);
         return ApiResult.success(vo);
     }
 
@@ -150,5 +162,14 @@ public class ContentController {
         if (role == null) return false;
         String r = role.toUpperCase();
         return r.contains("SUPER_ADMIN") || r.contains("DEPT_MANAGER") || r.contains("ADMIN");
+    }
+
+    private boolean isDeptManagerOnly(String role) {
+        if (role == null) return false;
+        String r = role.toUpperCase();
+        if (r.contains("SUPER_ADMIN") || r.contains("ADMIN") || r.contains("ROLE_ADMIN")) {
+            return false;
+        }
+        return r.contains("DEPT_MANAGER") || r.contains("MANAGER");
     }
 }

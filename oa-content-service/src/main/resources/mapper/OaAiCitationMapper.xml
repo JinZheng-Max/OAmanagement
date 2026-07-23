@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wut.practicum.mapper.OaAiCitationMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO oa_ai_citation (session_id, source_type, content_id, source_id, chunk_id,
+            source_title, fragment_summary, score, source_version)
+        VALUES (#{sessionId}, #{sourceType}, #{contentId}, #{sourceId}, #{chunkId},
+            #{sourceTitle}, #{fragmentSummary}, #{score}, #{sourceVersion})
+    </insert>
+
+    <insert id="insertBatch">
+        INSERT INTO oa_ai_citation (session_id, source_type, content_id, source_id, chunk_id,
+            source_title, fragment_summary, score, source_version)
+        VALUES
+            <foreach item="c" collection="list" separator=",">
+            (#{c.sessionId}, #{c.sourceType}, #{c.contentId}, #{c.sourceId}, #{c.chunkId},
+             #{c.sourceTitle}, #{c.fragmentSummary}, #{c.score}, #{c.sourceVersion})
+            </foreach>
+    </insert>
+
+    <select id="selectBySessionId" resultType="com.wut.practicum.entity.OaAiCitation">
+        SELECT * FROM oa_ai_citation WHERE session_id = #{sessionId} ORDER BY id ASC
+    </select>
+
+</mapper>

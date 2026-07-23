@@ -15,9 +15,8 @@ import jakarta.validation.constraints.Size;
  */
 @Schema(description = "新增员工请求")
 public record EmployeeCreateRequest(
-        @NotBlank(message = "工号不能为空")
         @Size(max = 50, message = "工号最长50个字符")
-        @Schema(description = "员工工号（唯一）", example = "EMP005")
+        @Schema(description = "员工工号（可选，系统自动生成以 Smart 开头的工号）", example = "Smart0005")
         String employeeNo,
 
         @NotBlank(message = "姓名不能为空")

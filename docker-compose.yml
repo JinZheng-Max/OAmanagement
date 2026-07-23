@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  # 1. 向量数据库：ChromaDB
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: oa-chroma
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+      - ALLOW_RESET=TRUE
+    volumes:
+      - ./data/chroma:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v2/heartbeat || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 2. 轻量向量模型引擎：Hugging Face Text Embeddings Inference (bge-small-zh-v1.5)
+  embedding:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9
+    container_name: oa-embedding
+    restart: unless-stopped
+    command:
+      - "--model-id"
+      - "BAAI/bge-small-zh-v1.5"
+      - "--port"
+      - "80"
+      - "--max-client-batch-size"
+      - "32"
+    ports:
+      - "8080:80"
+    volumes:
+      - ./data/huggingface:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:80/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

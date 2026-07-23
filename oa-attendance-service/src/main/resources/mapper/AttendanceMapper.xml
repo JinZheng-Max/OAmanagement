@@ -6,46 +6,102 @@
     <resultMap id="AttendanceMap" type="com.wut.practicum.entity.OaAttendance">
         <id property="id" column="id"/>
         <result property="employeeId" column="employee_id"/>
+        <result property="departmentId" column="department_id"/>
         <result property="workDate" column="work_date"/>
+        <result property="sessionName" column="session_name"/>
         <result property="checkIn" column="check_in"/>
         <result property="checkOut" column="check_out"/>
         <result property="checkInIp" column="check_in_ip"/>
         <result property="checkOutIp" column="check_out_ip"/>
+        <result property="checkInStartTime" column="check_in_start_time"/>
+        <result property="normalCheckInEndTime" column="normal_check_in_end_time"/>
+        <result property="checkInEndTime" column="check_in_end_time"/>
+        <result property="normalCheckOutStartTime" column="normal_check_out_start_time"/>
+        <result property="checkOutEndTime" column="check_out_end_time"/>
         <result property="status" column="status"/>
+        <result property="replenishStatus" column="replenish_status"/>
+        <result property="replenishReason" column="replenish_reason"/>
+        <result property="approverId" column="approver_id"/>
+        <result property="approveTime" column="approve_time"/>
+        <result property="approveComment" column="approve_comment"/>
         <result property="createTime" column="create_time"/>
         <result property="updateTime" column="update_time"/>
         <result property="employeeName" column="employee_name"/>
+        <result property="departmentName" column="department_name"/>
+        <result property="approverName" column="approver_name"/>
     </resultMap>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO oa_attendance (employee_id, work_date, check_in, check_out, check_in_ip, check_out_ip, status, create_time, update_time)
-        VALUES (#{employeeId}, #{workDate}, #{checkIn}, #{checkOut}, #{checkInIp}, #{checkOutIp}, #{status}, #{createTime}, #{updateTime})
+        INSERT INTO oa_attendance (employee_id, department_id, work_date, session_name, check_in, check_out, check_in_ip, check_out_ip, check_in_start_time, normal_check_in_end_time, check_in_end_time, normal_check_out_start_time, check_out_end_time, status, replenish_status, replenish_reason, approver_id, approve_time, approve_comment, create_time, update_time)
+        VALUES (#{employeeId}, #{departmentId}, #{workDate}, #{sessionName}, #{checkIn}, #{checkOut}, #{checkInIp}, #{checkOutIp}, #{checkInStartTime}, #{normalCheckInEndTime}, #{checkInEndTime}, #{normalCheckOutStartTime}, #{checkOutEndTime}, #{status}, #{replenishStatus}, #{replenishReason}, #{approverId}, #{approveTime}, #{approveComment}, #{createTime}, #{updateTime})
     </insert>
 
     <update id="update">
         UPDATE oa_attendance
         <set>
+            <if test="departmentId != null">department_id = #{departmentId},</if>
+            <if test="sessionName != null">session_name = #{sessionName},</if>
             <if test="checkIn != null">check_in = #{checkIn},</if>
             <if test="checkOut != null">check_out = #{checkOut},</if>
             <if test="checkInIp != null">check_in_ip = #{checkInIp},</if>
             <if test="checkOutIp != null">check_out_ip = #{checkOutIp},</if>
+            <if test="checkInStartTime != null">check_in_start_time = #{checkInStartTime},</if>
+            <if test="normalCheckInEndTime != null">normal_check_in_end_time = #{normalCheckInEndTime},</if>
+            <if test="checkInEndTime != null">check_in_end_time = #{checkInEndTime},</if>
+            <if test="normalCheckOutStartTime != null">normal_check_out_start_time = #{normalCheckOutStartTime},</if>
+            <if test="checkOutEndTime != null">check_out_end_time = #{checkOutEndTime},</if>
             <if test="status != null">status = #{status},</if>
+            <if test="replenishStatus != null">replenish_status = #{replenishStatus},</if>
+            <if test="replenishReason != null">replenish_reason = #{replenishReason},</if>
+            <if test="approverId != null">approver_id = #{approverId},</if>
+            <if test="approveTime != null">approve_time = #{approveTime},</if>
+            <if test="approveComment != null">approve_comment = #{approveComment},</if>
             update_time = #{updateTime}
         </set>
         WHERE id = #{id}
     </update>
 
     <select id="selectByEmployeeAndDate" resultMap="AttendanceMap">
-        SELECT a.*, e.name as employee_name
+        SELECT a.*, e.name as employee_name, d.name as department_name, app_e.name as approver_name
         FROM oa_attendance a
         LEFT JOIN oa_employee e ON a.employee_id = e.id
+        LEFT JOIN sys_department d ON e.department_id = d.id
+        LEFT JOIN sys_user u ON a.approver_id = u.id
+        LEFT JOIN oa_employee app_e ON u.employee_id = app_e.id
         WHERE a.employee_id = #{employeeId} AND a.work_date = #{workDate}
+        ORDER BY a.id ASC
+        LIMIT 1
+    </select>
+
+    <select id="selectByEmployeeDateAndSession" resultMap="AttendanceMap">
+        SELECT a.*, e.name as employee_name, d.name as department_name, app_e.name as approver_name
+        FROM oa_attendance a
+        LEFT JOIN oa_employee e ON a.employee_id = e.id
+        LEFT JOIN sys_department d ON e.department_id = d.id
+        LEFT JOIN sys_user u ON a.approver_id = u.id
+        LEFT JOIN oa_employee app_e ON u.employee_id = app_e.id
+        WHERE a.employee_id = #{employeeId} AND a.work_date = #{workDate} AND a.session_name = #{sessionName}
+        LIMIT 1
+    </select>
+
+    <select id="selectListByEmployeeAndDate" resultMap="AttendanceMap">
+        SELECT a.*, e.name as employee_name, d.name as department_name, app_e.name as approver_name
+        FROM oa_attendance a
+        LEFT JOIN oa_employee e ON a.employee_id = e.id
+        LEFT JOIN sys_department d ON e.department_id = d.id
+        LEFT JOIN sys_user u ON a.approver_id = u.id
+        LEFT JOIN oa_employee app_e ON u.employee_id = app_e.id
+        WHERE a.employee_id = #{employeeId} AND a.work_date = #{workDate}
+        ORDER BY a.id ASC
     </select>
 
     <select id="selectById" resultMap="AttendanceMap">
-        SELECT a.*, e.name as employee_name
+        SELECT a.*, e.name as employee_name, d.name as department_name, app_e.name as approver_name
         FROM oa_attendance a
         LEFT JOIN oa_employee e ON a.employee_id = e.id
+        LEFT JOIN sys_department d ON e.department_id = d.id
+        LEFT JOIN sys_user u ON a.approver_id = u.id
+        LEFT JOIN oa_employee app_e ON u.employee_id = app_e.id
         WHERE a.id = #{id}
     </select>
 
@@ -55,7 +111,7 @@
                 AND a.employee_id = #{employeeId}
             </if>
             <if test="departmentId != null">
-                AND emp.department_id = #{departmentId}
+                AND (a.department_id = #{departmentId} OR emp.department_id = #{departmentId})
             </if>
             <if test="startDate != null and startDate != ''">
                 AND a.work_date &gt;= #{startDate}
@@ -70,9 +126,12 @@
     </sql>
 
     <select id="selectPageList" resultMap="AttendanceMap">
-        SELECT a.*, emp.name as employee_name
+        SELECT a.*, emp.name as employee_name, d.name as department_name, app_e.name as approver_name
         FROM oa_attendance a
         LEFT JOIN oa_employee emp ON a.employee_id = emp.id
+        LEFT JOIN sys_department d ON emp.department_id = d.id
+        LEFT JOIN sys_user u ON a.approver_id = u.id
+        LEFT JOIN oa_employee app_e ON u.employee_id = app_e.id
         <include refid="whereClause"/>
         ORDER BY a.work_date DESC, a.id DESC
         LIMIT #{limit} OFFSET #{offset}
@@ -83,6 +142,47 @@
         FROM oa_attendance a
         LEFT JOIN oa_employee emp ON a.employee_id = emp.id
         <include refid="whereClause"/>
+    </select>
+
+    <select id="selectReplenishPageList" resultMap="AttendanceMap">
+        SELECT a.*, emp.name as employee_name, d.name as department_name, app_e.name as approver_name
+        FROM oa_attendance a
+        LEFT JOIN oa_employee emp ON a.employee_id = emp.id
+        LEFT JOIN sys_department d ON emp.department_id = d.id
+        LEFT JOIN sys_user u ON a.approver_id = u.id
+        LEFT JOIN oa_employee app_e ON u.employee_id = app_e.id
+        <where>
+            AND a.replenish_status != 'NONE' AND a.replenish_status IS NOT NULL
+            <if test="departmentId != null">
+                AND (a.department_id = #{departmentId} OR emp.department_id = #{departmentId})
+            </if>
+            <if test="employeeId != null">
+                AND a.employee_id = #{employeeId}
+            </if>
+            <if test="replenishStatus != null and replenishStatus != ''">
+                AND a.replenish_status = #{replenishStatus}
+            </if>
+        </where>
+        ORDER BY a.update_time DESC, a.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="selectReplenishCount" resultType="long">
+        SELECT COUNT(*)
+        FROM oa_attendance a
+        LEFT JOIN oa_employee emp ON a.employee_id = emp.id
+        <where>
+            AND a.replenish_status != 'NONE' AND a.replenish_status IS NOT NULL
+            <if test="departmentId != null">
+                AND (a.department_id = #{departmentId} OR emp.department_id = #{departmentId})
+            </if>
+            <if test="employeeId != null">
+                AND a.employee_id = #{employeeId}
+            </if>
+            <if test="replenishStatus != null and replenishStatus != ''">
+                AND a.replenish_status = #{replenishStatus}
+            </if>
+        </where>
     </select>
 
     <select id="countStatusByFilter" resultType="map">
@@ -96,5 +196,26 @@
     <select id="selectActiveEmployeeIds" resultType="long">
         SELECT id FROM oa_employee WHERE status = 1
     </select>
+
+    <select id="selectActiveEmployeeIdsByDepartment" resultType="long">
+        SELECT id FROM oa_employee WHERE status = 1
+        <if test="departmentId != null">
+            AND department_id = #{departmentId}
+        </if>
+    </select>
+
+    <update id="updateUncheckedRuleSnapshot">
+        UPDATE oa_attendance
+        SET check_in_start_time = #{checkInStartTime},
+            normal_check_in_end_time = #{normalCheckInEndTime},
+            check_in_end_time = #{checkInEndTime},
+            normal_check_out_start_time = #{normalCheckOutStartTime},
+            check_out_end_time = #{checkOutEndTime},
+            update_time = NOW()
+        WHERE department_id = #{departmentId}
+          AND work_date = #{workDate}
+          AND session_name = #{sessionName}
+          AND check_out IS NULL
+    </update>
 
 </mapper>

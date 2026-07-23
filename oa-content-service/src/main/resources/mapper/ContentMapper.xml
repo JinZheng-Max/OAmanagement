@@ -61,6 +61,9 @@
     <select id="selectList" resultMap="ContentMap">
         SELECT * FROM oa_content
         <where>
+            <if test="keyword != null and keyword != ''">
+                AND (title LIKE CONCAT('%', #{keyword}, '%') OR body LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
             <if test="type != null and type != ''">
                 AND type = #{type}
             </if>
@@ -70,8 +73,12 @@
             <if test="status != null and status != ''">
                 AND status = #{status}
             </if>
+            <if test="publisherId != null">
+                AND publisher_id = #{publisherId}
+            </if>
             <if test="!isAdmin">
                 AND status = 'PUBLISHED'
+                AND (scope = 'ALL' OR scope IS NULL)
             </if>
         </where>
         ORDER BY publish_time DESC, id DESC
@@ -81,6 +88,9 @@
     <select id="countList" resultType="long">
         SELECT COUNT(1) FROM oa_content
         <where>
+            <if test="keyword != null and keyword != ''">
+                AND (title LIKE CONCAT('%', #{keyword}, '%') OR body LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
             <if test="type != null and type != ''">
                 AND type = #{type}
             </if>
@@ -90,8 +100,12 @@
             <if test="status != null and status != ''">
                 AND status = #{status}
             </if>
+            <if test="publisherId != null">
+                AND publisher_id = #{publisherId}
+            </if>
             <if test="!isAdmin">
                 AND status = 'PUBLISHED'
+                AND (scope = 'ALL' OR scope IS NULL)
             </if>
         </where>
     </select>

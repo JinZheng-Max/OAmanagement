@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Upload, Download, Search, Refresh } from '@element-plus/icons-vue'
 import { useAuthStore } from '../../stores/auth'
 import {
   getEmployeePage,
@@ -8,13 +9,61 @@ import {
   updateEmployee,
   createAccount,
   resetPassword,
+  importEmployees,
   EmployeeInfo,
   CreateEmployeeRequest,
   UpdateEmployeeRequest,
+  type EmployeeImportResultVO
 } from '../../api/employee'
 import { listActiveDepartments, type DepartmentInfo } from '../../api/department'
 
 const auth = useAuthStore()
+
+// ---- 批量导入状态 ----
+const importDialogVisible = ref(false)
+const importLoading = ref(false)
+const selectedFile = ref<File | null>(null)
+const importResult = ref<EmployeeImportResultVO | null>(null)
+
+function openImportModal() {
+  selectedFile.value = null
+  importResult.value = null
+  importDialogVisible.value = true
+}
+
+function handleFileChange(uploadFile: any) {
+  selectedFile.value = uploadFile.raw
+}
+
+function downloadTemplate() {
+  const content = '\uFEFF' + '姓名,部门,职位,电话号码\n张伟,技术部,Java开发工程师,13800001001\n李娜,人事部,招聘专员,13800001002\n王强,财务部,会计,13800001003\n赵敏,行政部,行政专员,13800001004\n'
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.setAttribute('href', url)
+  link.setAttribute('download', '员工批量导入模板.csv')
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+async function handleImportSubmit() {
+  if (!selectedFile.value) {
+    ElMessage.warning('请先选择要上传的 Excel 或 CSV 文件')
+    return
+  }
+  importLoading.value = true
+  try {
+    const res = await importEmployees(selectedFile.value)
+    importResult.value = res
+    ElMessage.success(`导入完成！成功导入 ${res.successCount} 条数据`)
+    fetchData()
+  } catch (err: any) {
+    ElMessage.error(err?.response?.data?.message || '批量导入失败')
+  } finally {
+    importLoading.value = false
+  }
+}
 
 // ---- 状态变量 ----
 const loading = ref(false)
@@ -251,7 +300,12 @@ const isAdmin = auth.isAdmin
     <!-- ===== 页面标题栏 ===== -->
     <div class="page-header">
       <h2>员工管理</h2>
-      <el-button type="primary" @click="openAddDialog">+ 新增员工</el-button>
+      <div style="display: flex; gap: 10px;">
+        <el-button type="success" plain @click="openImportModal">
+          <el-icon><Upload /></el-icon> 批量导入员工 (.xlsx / .csv)
+        </el-button>
+        <el-button type="primary" @click="openAddDialog">+ 新增员工</el-button>
+      </div>
     </div>
 
     <!-- ===== 搜索栏（3个字段 + 按钮） ===== -->
@@ -393,9 +447,6 @@ const isAdmin = auth.isAdmin
       :close-on-click-modal="false"
     >
       <el-form :model="form" label-width="100px" @submit.prevent="handleSubmit">
-        <el-form-item label="工号" required>
-          <el-input v-model="form.employeeNo" :disabled="isEdit" placeholder="请输入工号" />
-        </el-form-item>
         <el-form-item label="姓名" required>
           <el-input v-model="form.name" placeholder="请输入姓名" />
         </el-form-item>
@@ -508,6 +559,74 @@ const isAdmin = auth.isAdmin
       </div>
       <template #footer>
         <el-button @click="passwordDialogVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- ===== 批量导入员工 弹窗 ===== -->
+    <el-dialog v-model="importDialogVisible" title="批量导入员工" width="560px" :close-on-click-modal="false">
+      <div class="import-dialog-body">
+        <div class="template-section" style="margin-bottom: 20px; padding: 12px 16px; background: #f8fafc; border-radius: 6px; border: 1px dashed #cbd5e1;">
+          <p style="margin-bottom: 6px; font-weight: 600; color: #334155;">第 1 步：下载标准导入模版</p>
+          <p style="font-size: 13px; color: #64748b; margin-bottom: 8px;">
+            模版包含【姓名、部门、职位、电话号码】4列属性。工号无需填写，系统将自动分配（Smart开头）。
+          </p>
+          <el-button type="primary" link @click="downloadTemplate">
+            <el-icon><Download /></el-icon> 点击下载导入模板 (.csv)
+          </el-button>
+        </div>
+
+        <div class="upload-section" style="margin-bottom: 20px;">
+          <p style="margin-bottom: 8px; font-weight: 600; color: #334155;">第 2 步：上传填写好的 Excel 或 CSV 文件</p>
+          <el-upload
+            drag
+            action=""
+            :auto-upload="false"
+            :show-file-list="true"
+            :limit="1"
+            accept=".xlsx,.xls,.csv"
+            :on-change="handleFileChange"
+          >
+            <el-icon class="el-icon--upload"><Upload /></el-icon>
+            <div class="el-upload__text">
+              将 Excel / CSV 文件拖到此处，或<em>点击选择文件</em>
+            </div>
+            <template #tip>
+              <div class="el-upload__tip">
+                支持扩展名为 .xlsx, .xls, .csv 的表格文件，编码格式自动识别 UTF-8 / GBK
+              </div>
+            </template>
+          </el-upload>
+        </div>
+
+        <!-- 导入结果反馈 -->
+        <div v-if="importResult" class="result-section" style="margin-top: 16px; border-top: 1px solid #e2e8f0; padding-top: 16px;">
+          <el-alert
+            :title="`导入分析完成：解析总数 ${importResult.totalCount} 条，成功 ${importResult.successCount} 条，失败 ${importResult.failCount} 条（已自动开通系统账号，默认角色：普通员工）`"
+            :type="importResult.failCount === 0 ? 'success' : 'warning'"
+            show-icon
+            :closable="false"
+            style="margin-bottom: 12px;"
+          />
+          <div v-if="importResult.successDetails && importResult.successDetails.length > 0" style="margin-bottom: 12px;">
+            <p style="font-size: 13px; font-weight: 600; color: #10b981; margin-bottom: 6px;">已自动开通账号及初始密码：</p>
+            <ul style="max-height: 140px; overflow-y: auto; font-size: 12px; color: #047857; background: #ecfdf5; padding: 10px 16px 10px 32px; border-radius: 4px; border: 1px solid #a7f3d0;">
+              <li v-for="(succ, idx) in importResult.successDetails" :key="idx">{{ succ }}</li>
+            </ul>
+          </div>
+          <div v-if="importResult.errorMessages && importResult.errorMessages.length > 0">
+            <p style="font-size: 13px; font-weight: 600; color: #ef4444; margin-bottom: 6px;">失败原因与排错明细：</p>
+            <ul style="max-height: 140px; overflow-y: auto; font-size: 12px; color: #dc2626; background: #fff5f5; padding: 10px 16px 10px 32px; border-radius: 4px; border: 1px solid #fecaca;">
+              <li v-for="(err, idx) in importResult.errorMessages" :key="idx">{{ err }}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="importDialogVisible = false">关闭</el-button>
+        <el-button type="primary" :loading="importLoading" @click="handleImportSubmit">
+          确认开始导入
+        </el-button>
       </template>
     </el-dialog>
   </div>
