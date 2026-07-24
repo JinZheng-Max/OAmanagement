@@ -76,11 +76,8 @@ mysql -u root -p
 ```sql
 CREATE DATABASE IF NOT EXISTS oa_db DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE oa_db;
-SOURCE sql/schema-clean.sql;
+SOURCE sql/data.sql;
 ```
-
-> `schema-clean.sql` 包含所有表结构但不含数据。
-> 如需初始测试数据（管理员账号、部门、员工），改用 `SOURCE sql/data.sql`
 
 ### 3.2 配置 .env 文件
 
