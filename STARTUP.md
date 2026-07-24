@@ -89,7 +89,7 @@ npm -v     # 应显示 9.x.x 或更高
 2. 下载 **MySQL Installer for Windows**（约 400MB）
 3. 安装类型选 **Server only**
 4. 安装过程中会要求你设置 **root 密码**，**请务必记下来！**
-   - 建议用简单密码：`5201314qinjia`（本项目的 `.env` 默认使用这个密码）
+   - 建议用简单密码：`12345678`（方便测试）
    - 如果用其他密码，记得去 `.env` 文件中修改
 5. 端口保持默认 **3306**
 6. 安装完成后，打开命令提示符验证：
@@ -172,7 +172,7 @@ git --version
 
 ```bash
 D:
-cd D:\QQ\download
+cd D:\oa-service    # 你可以自己创建一个 oa-service 文件夹用来存放代码
 ```
 
 3. 克隆项目（下载代码）：
@@ -198,11 +198,11 @@ cd OAmanagement
 项目根目录下有一个 `.env` 文件，用**记事本**打开，确认以下配置：
 
 ```ini
-MYSQL_PASSWORD=5201314qinjia
-# ↑ 这是 MySQL 密码，如果你安装 MySQL 时设置了其他密码，改成你的
+MYSQL_PASSWORD=12345678
+# ↑ 这是 MySQL 密码
 
 JWT_SECRET=vRF4pOju7IYF/T0Jmuc60nEB6ojFL4TSgqV64zh1RyuBx5UyYTgsCVVB1TLlpF4Y
-# ↑ 这个不用改
+# ↑ 这个可以改成你自己的密钥
 
 DEEPSEEK_API_KEY=你的DeepSeek_API_Key
 # ↑ DeepSeek AI 的 API Key，用于 AI 问答功能（需要去 https://platform.deepseek.com 申请）
@@ -228,7 +228,7 @@ mysql -u root -p
 ```sql
 CREATE DATABASE IF NOT EXISTS oa_db DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE oa_db;
-SOURCE D:/QQ/download/OAmanagement/sql/data.sql;
+SOURCE D:/oa-service/OAmanagement/sql/data.sql;
 ```
 
 执行成功后应该会显示多条 `Query OK` 信息。最后输入 `exit` 退出。
@@ -272,7 +272,7 @@ startup.cmd -m standalone
 ### 4.2 启动 Docker 容器（ChromaDB + Embedding）
 
 ```bash
-cd D:\QQ\download\OAmanagement
+cd D:\oa-service\OAmanagement
 docker compose up -d
 ```
 
@@ -323,7 +323,7 @@ redis-cli ping
 **窗口 1** 执行：
 
 ```bash
-cd D:\QQ\download\OAmanagement
+cd D:\oa-service\OAmanagement
 mvnw spring-boot:run -pl identity-service -Dmaven.test.skip=true
 ```
 
@@ -341,7 +341,7 @@ Started IdentityServiceApplication in 16 seconds
 **窗口 2** 执行：
 
 ```bash
-cd D:\QQ\download\OAmanagement
+cd D:\oa-service\OAmanagement
 mvnw spring-boot:run -pl oa-content-service -Dmaven.test.skip=true -Dspring-boot.run.jvmArguments="-Xmx1g -Xms256m"
 ```
 
@@ -361,7 +361,7 @@ Started OaContentServiceApplication in 20 seconds
 **窗口 3** 执行：
 
 ```bash
-cd D:\QQ\download\OAmanagement
+cd D:\oa-service\OAmanagement
 mvnw spring-boot:run -pl oa-gateway -Dmaven.test.skip=true
 ```
 
@@ -381,7 +381,7 @@ Started OaGatewayApplication in 13 seconds
 打开**第四个**命令提示符窗口，执行：
 
 ```bash
-cd D:\QQ\download\OAmanagement\newFrontEnd
+cd D:\oa-service\OAmanagement\newFrontEnd
 npm install        # 第一次运行需要安装依赖（仅安装一次）
 npm run dev        # 启动开发服务器
 ```
@@ -447,7 +447,7 @@ Local:   http://localhost:5173/
 
 ### 方式二：批量导入（大量文档时使用）
 
-1. 将你的所有 docx/pdf 文件放入 `D:\QQ\download\知识库word\` 目录
+1. 将你的所有 docx/pdf 文件放入 `D:\oa-service\知识库word\` 目录
 2. 打开命令提示符，执行：
 
 ```bash
