@@ -1,190 +1,101 @@
-# OA 智能管理系统 — 完整启动方案
+# 智办 AI OA 系统 — 完整安装启动手册
 
-> 本文档面向**计算机新手**，手把手教你从零搭建并启动整个项目。
-> 只需按顺序操作，每个步骤都有详细说明。
+> **适用人群**：电脑初级用户  
+> **更新日期**：2026-07-23  
+> **项目版本**：v2.0（含 AI 知识库、Flowable 工作流、OSS 存储）
 
 ---
 
-## 📦 需要安装的软件
+## 目录
+
+1. [需要安装的软件](#1-需要安装的软件)
+2. [下载项目代码](#2-下载项目代码)
+3. [配置环境](#3-配置环境)
+4. [启动基础设施](#4-启动基础设施)
+5. [启动后端服务](#5-启动后端服务)
+6. [启动前端](#6-启动前端)
+7. [打开系统](#7-打开系统)
+8. [导入知识库文档（可选）](#8-导入知识库文档可选)
+9. [常见问题](#9-常见问题)
+10. [附录：系统架构](#10-附录系统架构)
+
+---
+
+## 1. 需要安装的软件
 
 | 软件 | 版本要求 | 下载地址 | 用途 |
 |:-----|:---------|:---------|:-----|
 | **JDK 21** | ≥ 21 | https://www.oracle.com/java/technologies/downloads/ | 运行后端 Java 服务 |
 | **Node.js** | ≥ 18 | https://nodejs.org/ | 运行前端网页 |
-| **MySQL** | ≥ 8.0 | https://dev.mysql.com/downloads/installer/ | 存储数据 |
-| **Redis** | ≥ 7.0 | https://github.com/tporadowski/redis/releases | 缓存、登录会话 |
-| **Docker Desktop** | 最新版 | https://www.docker.com/products/docker-desktop/ | 运行 AI 向量库 |
-| **Nacos** | 2.x | https://github.com/alibaba/nacos/releases | 服务注册与配置 |
+| **MySQL** | ≥ 8.0 | https://dev.mysql.com/downloads/installer/ | 数据存储 |
+| **Redis** | ≥ 7.0 | https://github.com/tporadowski/redis/releases | 缓存与登录会话 |
+| **Docker Desktop** | 最新版 | https://www.docker.com/products/docker-desktop/ | 运行 AI 向量数据库 |
 | **Git** | 最新版 | https://git-scm.com/ | 下载代码 |
+| **Nacos** | 2.x | https://github.com/alibaba/nacos/releases | 服务注册与配置中心 |
 
----
+### 安装验证
 
-## 第一步：安装环境（电脑小白版）
+安装完成后，打开命令提示符（`Win+R` → `cmd`），输入以下命令验证：
 
-### 1.1 安装 JDK 21
-
-1. 打开 https://www.oracle.com/java/technologies/downloads/
-2. 选择 **Windows → x64 Installer**，下载 `.exe` 文件
-3. 双击安装，一路点"下一步"
-4. **记住安装路径**，例如 `C:\Program Files\Java\jdk-21`
-5. 验证：打开命令提示符（按 `Win+R`，输入 `cmd`，回车），输入：
-   ```
-   java -version
-   ```
-   看到 `openjdk version "21"` 即成功
-
-### 1.2 安装 Node.js
-
-1. 打开 https://nodejs.org/
-2. 下载 **LTS 版本**（左侧按钮）
-3. 双击安装，一路"下一步"
-4. 验证：
-   ```
-   node -v
-   npm -v
-   ```
-   看到版本号即成功
-
-### 1.3 安装 MySQL
-
-1. 打开 https://dev.mysql.com/downloads/installer/
-2. 下载 **MySQL Installer for Windows**（约 400MB）
-3. 安装类型选 **Server only**
-4. 设置 **root 密码**（务必记住！）
-5. 保持默认端口 **3306**
-6. 默认字符集选 **UTF-8**
-7. 验证：
-   ```
-   mysql -u root -p
-   ```
-   输入密码后能进入 `mysql>` 提示符即成功
-
-### 1.4 安装 Redis
-
-1. 下载 https://github.com/tporadowski/redis/releases （选择 `.msi` 或 `.zip`）
-2. 如果是 `.msi`：双击安装，勾选"添加到 PATH"
-3. 如果是 `.zip`：解压到 `D:\software\Redis`
-4. 启动 Redis（两种方式任选）：
-   - **方式一**：双击 `redis-server.exe`
-   - **方式二**：命令行运行 `redis-server`
-5. 验证（新开一个命令行）：
-   ```
-   redis-cli ping
-   ```
-   返回 `PONG` 即成功
-
-### 1.5 安装 Docker Desktop
-
-1. 打开 https://www.docker.com/products/docker-desktop/
-2. 下载 **Docker Desktop for Windows**
-3. 双击安装，需要 **重启电脑**
-4. 启动 Docker Desktop（桌面图标）
-5. 等待左下角显示绿色 **Running**
-6. 验证（打开命令行）：
-   ```
-   docker ps
-   ```
-   不报错即成功
-
-### 1.6 安装 Nacos
-
-1. 打开 https://github.com/alibaba/nacos/releases
-2. 下载 **nacos-server-2.x.x.zip**（最新版）
-3. 解压到 `D:\nacos`
-4. 启动 Nacos（进入 `D:\nacos\bin` 目录）：
-   ```
-   startup.cmd -m standalone
-   ```
-5. 等待几秒，打开浏览器访问 http://localhost:8848/nacos
-6. 默认登录：用户名 `nacos`，密码 `nacos`
-7. 验证：看到 Nacos 控制台即成功
-
-### 1.7 安装 Git
-
-1. 打开 https://git-scm.com/
-2. 下载 Windows 版本
-3. 双击安装，一路"下一步"
-4. 验证：
-   ```
-   git --version
-   ```
-
----
-
-## 第二步：下载项目代码
-
-1. 打开命令行（`Win+R` → `cmd`）
-2. 进入你想放代码的目录，例如：
-   ```
-   cd D:\QQ\download
-   ```
-3. 克隆项目：
-   ```
-   git clone https://github.com/JinZheng-Max/OAmanagement.git
-   ```
-4. 进入项目目录：
-   ```
-   cd OAmanagement
-   ```
-
-> 💡 如果你已经拿到本项目代码文件夹，直接跳到下一步
-
----
-
-## 第三步：配置环境
-
-### 3.1 配置 .env 文件
-
-项目根目录下已有 `.env` 文件，检查并修改以下内容（用**记事本**打开）：
-
-```
-# ─── 数据库 ───
-MYSQL_URL=jdbc:mysql://localhost:3306/oa_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
-MYSQL_USERNAME=root
-MYSQL_PASSWORD=你的MySQL密码       ← 改为你自己的密码
-
-# ─── Redis ───
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_PASSWORD=                    ← 没设密码就留空
-
-# ─── JWT密钥 ───
-JWT_SECRET=vRF4pOju7IYF/T0Jmuc60nEB6ojFL4TSgqV64zh1RyuBx5UyYTgsCVVB1TLlpF4Y
-
-# ─── DeepSeek AI密钥 ───
-DEEPSEEK_API_KEY=你的API密钥       ← 如果需要AI问答，填写你的DeepSeek API Key
-
-# ─── Nacos ───
-NACOS_ENABLED=true
+```bash
+java -version          # 应显示 openjdk version "21"
+node -v                # 应显示 v18 或更高
+npm -v                 # 应显示对应版本号
+mysql -V              # 应显示 mysql 版本
+redis-cli -v          # 应显示 redis 版本
+docker --version      # 应显示 Docker 版本
+git --version         # 应显示 git 版本
 ```
 
-### 3.2 创建数据库
+---
 
-1. 登录 MySQL：
-   ```
-   mysql -u root -p
-   ```
-2. 输入密码进入 `mysql>` 提示符
-3. 创建数据库：
-   ```sql
-   CREATE DATABASE IF NOT EXISTS oa_db DEFAULT CHARSET utf8mb4;
-   USE oa_db;
-   ```
-4. 执行初始化脚本（不要关mysql，继续在 `mysql>` 中执行）：
-   ```
-   source D:\QQ\download\OAmanagement\sql\更新.sql;
-   ```
-   或者打开 `sql\更新.sql` 文件，把全部内容复制粘贴到 mysql 命令行中执行
+## 2. 下载项目代码
 
-5. 验证：
-   ```sql
-   SHOW TABLES;
-   ```
-   应该能看到 `sys_user`、`oa_ai_source`、`oa_department` 等 20+ 张表
+打开命令行，执行：
 
-### 3.3 添加到 hosts（如果 Nacos 报错）
+```bash
+cd D:\QQ\download
+git clone https://github.com/JinZheng-Max/OAmanagement.git
+cd OAmanagement
+```
 
-用**管理员身份**打开记事本，编辑 `C:\Windows\System32\drivers\etc\hosts`，在末尾添加：
+> 💡 如果你已有项目文件夹，直接进入项目目录即可
+
+---
+
+## 3. 配置环境
+
+### 3.1 创建数据库
+
+```bash
+mysql -u root -p
+```
+
+输入你的 MySQL 密码进入 `mysql>` 提示符后，执行：
+
+```sql
+CREATE DATABASE IF NOT EXISTS oa_db DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE oa_db;
+SOURCE sql/schema-clean.sql;
+```
+
+> `schema-clean.sql` 包含所有表结构但不含数据。
+> 如需初始测试数据（管理员账号、部门、员工），改用 `SOURCE sql/data.sql`
+
+### 3.2 配置 .env 文件
+
+项目根目录下的 `.env` 文件，用记事本打开，修改以下配置：
+
+```ini
+MYSQL_PASSWORD=你的MySQL密码       # ← 改成你的密码
+JWT_SECRET=vRF4pOju7IYF/...       # 保持不动或用你自己的密钥
+DEEPSEEK_API_KEY=你的API密钥       # ← DeepSeek API Key，用于AI问答
+NACOS_ENABLED=false               # 不需要改
+```
+
+### 3.3 配置 hosts 文件（如果 Nacos 报错）
+
+用管理员身份打开 `C:\Windows\System32\drivers\etc\hosts`，确保有：
 
 ```
 127.0.0.1 localhost
@@ -192,242 +103,251 @@ NACOS_ENABLED=true
 
 ---
 
-## 第四步：启动基础设施
+## 4. 启动基础设施
 
-### 4.1 启动 Docker 容器（AI 向量库 + 文本向量化）
+按顺序启动以下服务，**每个服务启动后不要关掉窗口**。
 
-打开命令行，进入项目目录：
+### 4.1 启动 Nacos
 
+```bash
+cd D:\nacos\bin
+startup.cmd -m standalone
 ```
-cd D:\QQ\download\OAmanagement
+
+等待 10 秒后，浏览器访问 http://localhost:8848/nacos 能看到登录页即成功。
+
+### 4.2 启动 Docker 容器（AI 向量库）
+
+```bash
+cd D:\QQ\download\OAmanagement-main
 docker compose up -d
 ```
 
 这会启动两个服务：
-- **ChromaDB** → http://localhost:8000（向量数据库）
-- **Embedding** → http://localhost:8080（文本转向量）
+- **ChromaDB**（向量数据库）→ `localhost:8000`
+- **Embedding**（文本转向量）→ `localhost:8080`
 
 验证：
-```
+
+```bash
 docker ps
 ```
-应该看到 `oa-chroma` 和 `oa-embedding` 两个容器状态为 `Up`
 
-### 4.2 确保 Redis 在运行
+看到 `oa-chroma` 和 `oa-embedding` 状态为 `Up` 即成功。
 
+### 4.3 启动 Redis
+
+双击 `D:\software\Redis\redis-server.exe`，或执行：
+
+```bash
+redis-server
 ```
+
+验证：
+
+```bash
 redis-cli ping
 ```
-返回 `PONG` 就行。没有的话，双击 `redis-server.exe` 启动
 
-### 4.3 确保 Nacos 在运行
-
-浏览器打开 http://localhost:8848/nacos ，能看到登录页就行
+返回 `PONG` 即成功。
 
 ---
 
-## 第五步：启动后端服务（按顺序）
+## 5. 启动后端服务
 
-> 💡 每个服务会打开一个新命令行窗口，不要关掉它们
+> ⚠️ **必须按顺序启动**，前一个启动成功后再启动下一个。
 
-### 5.1 启动 identity-service（身份认证服务）
+### 5.1 启动 identity-service（认证 + 部门 + 员工 + 请假 + Flowable 工作流）
 
-打开**第一个命令行**，执行：
-
-```
-cd D:\QQ\download\OAmanagement
+```bash
+cd D:\QQ\download\OAmanagement-main
 mvnw spring-boot:run -pl identity-service -Dmaven.test.skip=true
 ```
 
-等待看到 `Started IdentityServiceApplication`（约 30~50 秒），出现这个提示就说明启动成功了。
+等待约 30~50 秒，看到 `Started IdentityServiceApplication` 即为成功。
 
 端口：**8851**
 
-### 5.2 启动 oa-content-service（AI 内容服务）
+### 5.2 启动 oa-content-service（公告制度 + AI 知识库）
 
-打开**第二个命令行**，执行：
-
-```
-cd D:\QQ\download\OAmanagement
+```bash
 mvnw spring-boot:run -pl oa-content-service -Dmaven.test.skip=true -Dspring-boot.run.jvmArguments="-Xmx1g -Xms256m"
 ```
 
-等待看到 `Started OaContentServiceApplication`（约 20~30 秒）。
+等待约 20~30 秒，看到 `Started OaContentServiceApplication` 即为成功。
 
 端口：**8853**
 
-### 5.3 启动 oa-gateway（网关服务）
+### 5.3 启动 oa-gateway（API 网关）
 
-打开**第三个命令行**，执行：
-
-```
-cd D:\QQ\download\OAmanagement
+```bash
 mvnw spring-boot:run -pl oa-gateway -Dmaven.test.skip=true
 ```
 
-等待看到 `Started OaGatewayApplication`（约 15~20 秒）。
+等待约 15~20 秒，看到 `Started OaGatewayApplication` 即为成功。
 
 端口：**10002**
 
 ---
 
-## 第六步：启动前端
+## 6. 启动前端
 
-打开**第四个命令行**，执行：
+前端采用 **Vue 3 + Element Plus + Vite**，位于 `newFrontEnd` 目录（已弃用旧版 `oa-web`）。
 
-```
-cd D:\QQ\download\OAmanagement\oa-web
-npm install        ← 第一次运行需要安装依赖（仅一次）
+```bash
+cd D:\QQ\download\OAmanagement-main\newFrontEnd
+npm install        # 第一次运行需要安装依赖（仅一次）
 npm run dev
 ```
 
-等待看到 `http://localhost:5173` 即成功。
+看到 `http://localhost:5173` 即成功。
 
 ---
 
-## 第七步：打开系统
+## 7. 打开系统
 
-1. 打开浏览器，访问 **http://localhost:5173**
+1. 打开浏览器访问 **http://localhost:5173**
 2. 登录账号：
-   - **用户名**：`admin`
-   - **密码**：`Admin@123456`
-3. 进入系统后，左侧菜单可以看到：
-   - **🤖 AI 智能问答** — 基于知识库的 AI 问答
-   - **📚 知识文档管理** — 上传和管理企业知识文档
+
+| 账号 | 密码 | 角色 |
+|:-----|:-----|:-----|
+| `admin` | `Admin@123456` | 超级管理员 |
+| `zhangsan` | `emp123` | 部门经理 |
+| `lisi` | `emp123` | 普通员工 |
+
+### 功能模块总览
+
+| 菜单 | 功能说明 |
+|:-----|:---------|
+| 📊 仪表盘 | 公司概览、待办任务、快捷入口 |
+| 👥 组织管理 | 部门 CRUD + 员工 CRUD（含身份证/邮箱/工作年限） |
+| 📋 请假审批 | 提交请假 → 部门经理审批 → (超3天)总管理员审批 |
+| 📅 考勤管理 | 签到/签退/考勤看板/管理员补录 |
+| 📢 公告制度 | 公告与制度的发布/下架/全文检索 |
+| 🤖 AI 智能助手 | 基于 RAG 知识库的智能问答 + SSE 流式输出 |
 
 ---
 
-## 第八步：（可选）导入企业知识库
+## 8. 导入知识库文档（可选）
 
-1. 在 `D:\QQ\download\OAservice\知识库word` 目录下放入你的 docx/pdf 文件
-2. 启动系统后，打开 **知识文档管理** 页面
-3. 点击 **上传文档** 按钮，选择文件上传
-4. 系统会自动：
-   - 解析文档内容
-   - 进行文本分片
-   - 生成向量并存入 ChromaDB
-   - 等待约 1 分钟后，状态变为"已就绪"
-5. 回到 **AI 智能问答** 页面，就可以提问了
-
-### 快速批量导入
-
-如果你有很多文档，可以直接调用批量导入接口（在命令行执行）：
+1. 准备企业 docx/pdf 文档
+2. 放入 `D:\QQ\download\知识库word\` 目录
+3. 调用批量导入接口（或通过前端"知识文档管理"页面上传）：
 
 ```bash
 curl -X POST http://localhost:8853/api/ai/batch-import
 ```
 
-这会将 `D:/QQ/download/OA-service/知识库word` 目录下的所有文档批量导入。
+4. 等待约 1~2 分钟，系统自动完成：解析 → 分片 → 向量化 → 存入 ChromaDB
+5. 回到 **AI 智能助手** 页面即可提问
 
 ---
 
-## 📊 系统架构图
+## 9. 常见问题
 
-```
-浏览器 (http://localhost:5173)
-  │
-  ▼
-Vue 前端 → 网关 (10002) → identity-service (8851) ← MySQL ← Redis
-                │
-                ├→ oa-content-service (8853) ← ChromaDB (8000)
-                │                              ← Embedding (8080)
-                │                              ← DeepSeek API
-                │
-                └→ oa-attendance-service (8849)
-```
+### Q1: 启动时端口被占用
 
----
-
-## ❓ 常见问题
-
-### Q1: 启动时提示"端口被占用"
-
-每个服务有不同的端口号，检查哪个端口被占用了：
-
-```
+```bash
 netstat -ano | findstr 8853
 ```
 
-如果端口被占用，可以修改对应 `application.yml` 中的 `server.port`。
+找到占用端口的 PID，在任务管理器中结束该进程。
 
-### Q2: 启动时提示"连不上数据库"
+### Q2: 连不上数据库
 
 检查：
-1. MySQL 是否已启动（任务管理器看是否有 `mysqld.exe`）
-2. `.env` 中的 `MYSQL_PASSWORD` 是否填对了
-3. 数据库 `oa_db` 是否已创建
+- MySQL 服务是否运行（任务管理器找 `mysqld.exe`）
+- `.env` 文件中的 `MYSQL_PASSWORD` 是否正确
+- 数据库 `oa_db` 是否已创建
 
-### Q3: 启动时提示"连不上 Redis"
+### Q3: AI 问答返回"知识库中暂无相关内容"
 
-双击 `redis-server.exe` 启动 Redis，或者检查 Redis 是否已在运行：
-```
-redis-cli ping
-```
+原因：ChromaDB 中没有向量数据。
+解决：先上传知识文档（见第 8 节），等待索引完成（状态变为"已就绪"）。
 
-### Q4: 前端页面空白或报错
+### Q4: 文档索引失败
 
-1. 先确认 `npm install` 已执行过
-2. 确认命令行的 `npm run dev` 没有报错
-3. 确认后端服务都已启动（5.1~5.3 的执行窗口没有异常退出）
-4. 按 `F12` 打开浏览器开发者工具 → `Console` 标签，看红色报错信息
-
-### Q5: AI 问答返回"知识库中暂无相关内容"
-
-1. 检查 **知识文档管理** 页面是否有文档且状态为"已就绪"
-2. 没有文档的话，先上传文档（见第八步）
-3. 文档状态不对的话，点击"重索引"按钮重新处理
-
-### Q6: 文档索引失败
-
-在 **知识文档管理** 页面，如果文档状态显示"异常"：
-
-1. 点击文档后的**重索引**按钮
+如果知识库页面显示"异常"状态：
+1. 点击文档后的 **重索引** 按钮
 2. 等待 1~2 分钟
 3. 刷新页面查看状态
 
-### Q7: 想重置所有数据
+### Q5: 前端页面白屏
 
-如果你想清空所有数据重新开始：
-
-```sql
--- 在 MySQL 中执行
-USE oa_db;
-DELETE FROM oa_ai_source_chunk;
-DELETE FROM oa_ai_source;
-DELETE FROM oa_ai_citation;
-DELETE FROM oa_ai_session;
+```bash
+cd newFrontEnd
+npm install   # 重新安装依赖
+npm run dev   # 重新启动
 ```
 
-然后重新上传文档即可。
+### Q6: Docker 启动报错
+
+确保 Docker Desktop 已启动（任务栏右下角有 Docker 图标）。
+如果提示 "WSL 2 安装不完整"，请安装 WSL 2：
+
+```bash
+wsl --install
+```
 
 ---
 
-## 🔄 服务启动汇总（速查表）
+## 10. 附录：系统架构
 
-| 序号 | 服务 | 命令 | 端口 | 启动耗时 |
-|:----:|:-----|:-----|:----:|:--------:|
-| 0 | Docker 容器 | `docker compose up -d` | 8000,8080 | 30秒 |
-| 1 | identity-service | `mvnw spring-boot:run -pl identity-service -DskipTests` | 8851 | 40秒 |
-| 2 | oa-content-service | `mvnw spring-boot:run -pl oa-content-service -DskipTests -Dspring-boot.run.jvmArguments="-Xmx1g"` | 8853 | 20秒 |
-| 3 | oa-gateway | `mvnw spring-boot:run -pl oa-gateway -DskipTests` | 10002 | 15秒 |
-| 4 | 前端 | `cd oa-web && npm run dev` | 5173 | 5秒 |
+```
+┌──────────────────────────────────────────────────────────┐
+│                    浏览器 (localhost:5173)                 │
+│                    (newFrontEnd - Vue 3)                  │
+└─────────────────────────┬────────────────────────────────┘
+                          │ HTTP / API
+                          ▼
+┌──────────────────────────────────────────────────────────┐
+│              API 网关 (oa-gateway :10002)                │
+└────┬────────────┬──────────────┬─────────────────────────┘
+     │            │              │
+     ▼            ▼              ▼
+┌──────────┐ ┌──────────┐ ┌──────────────┐
+│identity  │ │content   │ │attendance    │
+│:8851     │ │:8853     │ │:8849         │
+│          │ │          │ │              │
+│• 认证    │ │• 公告制度│ │• 签到签退   │
+│• 部门    │ │• AI问答  │ │• 考勤看板   │
+│• 员工    │ │• 知识库  │ │• 补录       │
+│• 请假    │ │• OSS存储 │ │              │
+│• Flowable│ │          │ │              │
+└────┬─────┘ └────┬─────┘ └──────────────┘
+     │            │
+     ▼            ▼
+┌──────────┐ ┌──────────┐
+│  MySQL   │ │ ChromaDB │
+│  Redis   │ │ :8000    │
+│  Nacos   │ │Embedding │
+│  :8848   │ │ :8080    │
+└──────────┘ └──────────┘
+```
 
-> ⚠️ **必须按顺序启动**，前一个服务启动成功后再启动下一个
+### 端口一览
 
----
+| 服务 | 端口 | 说明 |
+|:-----|:----:|:-----|
+| 前端 (Vite) | 5173 | 开发服务器 |
+| 网关 | 10002 | API 统一入口 |
+| identity-service | 8851 | 用户/部门/员工/请假 |
+| oa-attendance-service | 8849 | 考勤管理 |
+| oa-content-service | 8853 | 公告/AI/知识库 |
+| Nacos | 8848 | 注册中心 |
+| MySQL | 3306 | 数据库 |
+| Redis | 6379 | 缓存 |
+| ChromaDB | 8000 | AI 向量库 |
+| Embedding | 8080 | 文本向量化 |
 
-## 📝 技术说明
+### 启动顺序速查
 
-| 功能模块 | 技术实现 |
-|:---------|:---------|
-| 用户认证 | JWT Token + Redis 会话 |
-| 服务注册 | Nacos 注册中心 |
-| 数据库 | MySQL + Flyway 迁移 |
-| 缓存 | Redis |
-| 服务间调用 | OpenFeign |
-| AI 向量库 | ChromaDB（Docker） |
-| 文本向量化 | HuggingFace Text Embeddings Inference（Docker） |
-| AI 对话 | DeepSeek API |
-| 文件解析 | Apache Tika |
-| 前端框架 | Vue 3 + Element Plus |
-| 构建工具 | Maven + Vite |
+```
+1. Nacos          → startup.cmd -m standalone
+2. Docker         → docker compose up -d
+3. Redis          → redis-server
+4. identity       → mvnw spring-boot:run -pl identity-service ...
+5. content        → mvnw spring-boot:run -pl oa-content-service ...
+6. gateway        → mvnw spring-boot:run -pl oa-gateway ...
+7. newFrontEnd    → cd newFrontEnd && npm run dev
+```
