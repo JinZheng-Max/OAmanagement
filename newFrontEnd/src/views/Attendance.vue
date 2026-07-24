@@ -172,8 +172,8 @@
                 v-if="['UNCHECKED', 'LATE', 'EARLY_LEAVE', 'ABSENT'].includes(row.status) && row.replenishStatus !== 'PENDING'"
                 type="warning"
                 size="small"
-                plain
                 @click="openApplyModal(row)"
+                class="replenish-btn"
               >
                 申请补签
               </el-button>
@@ -195,37 +195,7 @@
 
     <!-- ===== Tab 2: 部门考勤看板与发布 ===== -->
     <div v-if="activeTab === 'admin' && (isDeptManager || isSuperAdmin)" class="tab-pane-content">
-      <!-- 部门概览网格卡片 -->
-      <div class="dept-overview-grid" v-if="departmentStats.length > 0">
-        <div class="overview-card" v-for="stat in departmentStats" :key="stat.department">
-          <div class="overview-icon attendance-icon">
-            <el-icon><User /></el-icon>
-          </div>
-          <div class="overview-content">
-            <div class="overview-title">{{ stat.department }}</div>
-            <div class="overview-stats">
-              <div class="stat-item">
-                <span class="stat-value">{{ stat.total }}</span>
-                <span class="stat-label">总人数</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-value checked">{{ stat.checkedIn }}</span>
-                <span class="stat-label">已签到</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-value unchecked">{{ stat.unchecked }}</span>
-                <span class="stat-label">未签到</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-value rate">{{ stat.rate }}%</span>
-                <span class="stat-label">签到率</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <el-card class="glass-card" style="margin-top: 16px;">
+      <el-card class="glass-card">
         <div class="filter-card">
           <div class="filter-row">
             <div class="filter-group" v-if="isSuperAdmin">
@@ -262,11 +232,6 @@
             </div>
 
             <el-button type="primary" @click="fetchAdminRecords">刷新看板</el-button>
-
-            <el-button type="success" style="margin-left: auto;" @click="openPublishModal">
-              <el-icon><Plus /></el-icon>
-              手动发布指定部门考勤
-            </el-button>
           </div>
         </div>
 
@@ -301,8 +266,10 @@
             v-model:current-page="adminPage"
             v-model:page-size="adminSize"
             :total="adminTotal"
-            layout="total, prev, pager, next, jumper"
+            :page-sizes="[5, 10]"
+            layout="total, sizes, prev, pager, next, jumper"
             @current-change="fetchAdminRecords"
+            @size-change="fetchAdminRecords"
           />
         </div>
       </el-card>
@@ -328,7 +295,7 @@
           </div>
         </div>
 
-        <el-table v-loading="ruleLoading" :data="ruleList" stripe style="width: 100%; margin-top: 16px;">
+        <el-table v-loading="ruleLoading" :data="paginatedRuleList" stripe style="width: 100%; margin-top: 16px;">
           <el-table-column prop="departmentName" label="所属部门" width="150" />
           <el-table-column prop="sessionName" label="考勤场次名称" width="140" />
           <el-table-column label="签到窗口 (允许开始 ~ 正常截止 ~ 最晚)" min-width="280">
@@ -358,6 +325,15 @@
             </template>
           </el-table-column>
         </el-table>
+        <div class="pagination-bar">
+          <el-pagination
+            v-model:current-page="ruleCurrentPage"
+            v-model:page-size="rulePageSize"
+            :page-sizes="[5, 10]"
+            :total="ruleList.length"
+            layout="total, sizes, prev, pager, next, jumper"
+          />
+        </div>
       </el-card>
     </div>
 
@@ -522,31 +498,7 @@
       </template>
     </el-dialog>
 
-    <!-- ===== 3. 手动发布 弹窗 ===== -->
-    <el-dialog v-model="publishDialogVisible" title="手动发布部门考勤任务" width="460px" append-to-body align-center :close-on-click-modal="false">
-      <el-form label-width="110px">
-        <el-form-item label="目标部门" required>
-          <el-select v-model="publishDeptId" style="width: 100%" placeholder="选择发布部门">
-            <el-option v-for="d in departmentList" :key="d.id" :label="d.name" :value="d.id" />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item label="考勤日期" required>
-          <el-date-picker v-model="publishTargetDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
-        </el-form-item>
-
-        <el-form-item label="考勤场次">
-          <el-input v-model="publishSessionName" placeholder="不填则发布该部门所有启用的场次" />
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <el-button @click="publishDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="publishLoading" @click="handlePublishSubmit">确认发布</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- ===== 4. 驳回理由 弹窗 (强校验必填) ===== -->
+    <!-- ===== 3. 驳回理由 弹窗 (强校验必填) ===== -->
     <el-dialog v-model="rejectModalVisible" title="❌ 驳回考勤补签申请" width="480px" append-to-body align-center :close-on-click-modal="false">
       <div v-if="currentAuditRecord">
         <el-descriptions :column="1" border size="small" style="margin-bottom: 16px;">
@@ -608,8 +560,7 @@ import {
   getAdminRecords,
   getDepartmentRules,
   saveDepartmentRule,
-  deleteDepartmentRule,
-  publishDepartmentAttendance
+  deleteDepartmentRule
 } from '../api/attendance'
 import { listActiveDepartments, getDepartmentPage } from '../api/org'
 
@@ -692,8 +643,9 @@ function selectTargetTask(tasks, type) {
     }
   })
 
+  // 如果所有场次均已完成该操作，返回 null，由外层给出明确提示，不再盲目退回 tasks[0] (即上午场)
   if (uncompleted.length === 0) {
-    return tasks[0]
+    return null
   }
 
   // 1. 优先精准寻找当前系统时间落在该场次开放窗口 (checkInStartTime ~ checkOutEndTime / checkInEndTime) 内的任务
@@ -724,9 +676,26 @@ const handleClock = async (type) => {
     }
     
     let targetTask = selectTargetTask(tasks, type)
-    if (!targetTask) targetTask = tasks[0]
+    
+    // 若 targetTask 为 null，说明今天的所有场次都已经完成了此项操作（签到/签退）
+    if (!targetTask) {
+      if (type === 'check-in') {
+        return ElMessage.warning('今日所有考勤场次均已完成【签到】，请勿重复打卡！')
+      } else {
+        return ElMessage.warning('今日所有考勤场次均已完成【签退】，无需重复打卡！')
+      }
+    }
 
     if (type === 'check-in') {
+      const nowHHmm = new Date().toTimeString().slice(0, 5)
+      const checkInStart = targetTask.checkInStartTime || '00:00'
+      const checkInEnd = targetTask.checkInEndTime || '23:59'
+      if (nowHHmm < checkInStart) {
+        return ElMessage.warning(`非签到窗口期，禁止签到（签到开始时间：${checkInStart}）`)
+      }
+      if (nowHHmm > checkInEnd) {
+        return ElMessage.warning(`非签到窗口期，禁止签到（签到截止时间：${checkInEnd}）`)
+      }
       const res = await checkIn(targetTask.id)
       if (res && res.code === 200) {
         if (res.data && res.data.status === 'LATE') {
@@ -738,17 +707,13 @@ const handleClock = async (type) => {
     } else {
       const now = new Date()
       const nowHHmm = now.toTimeString().slice(0, 5)
-      const normalStart = targetTask.normalCheckOutStartTime || '11:50'
-      if (nowHHmm < normalStart) {
-        try {
-          await ElMessageBox.confirm(
-            `当前时间 (${nowHHmm}) 早于【${targetTask.sessionName || '该场次'}】正常签退最早时间 (${normalStart})，确定签退将记录为【早退】状态。是否继续？`,
-            '早退提示',
-            { confirmButtonText: '确定签退 (记早退)', cancelButtonText: '取消', type: 'warning' }
-          )
-        } catch {
-          return
-        }
+      const checkOutStart = targetTask.checkOutStartTime || '00:00'
+      const checkOutEnd = targetTask.checkOutEndTime || '23:59'
+      if (nowHHmm < checkOutStart) {
+        return ElMessage.warning(`非签退窗口期，禁止签退（签退开始时间：${checkOutStart}）`)
+      }
+      if (nowHHmm > checkOutEnd) {
+        return ElMessage.warning(`非签退窗口期，禁止签退（签退截止时间：${checkOutEnd}）`)
       }
 
       const res = await checkOut(targetTask.id)
@@ -842,12 +807,12 @@ const adminDateRange = ref(null)
 const departmentStats = computed(() => {
   const stats = {}
   departmentList.value.forEach(dept => {
-    stats[dept.id] = { name: dept.name, total: 0, checkedIn: 0, unchecked: 0 }
+    stats[String(dept.id)] = { name: dept.name, total: 0, checkedIn: 0, unchecked: 0 }
   })
   adminList.value.forEach(record => {
-    const deptId = record.departmentId || 1
+    const deptId = String(record.departmentId || 1)
     if (!stats[deptId]) {
-      const dept = departmentList.value.find(d => d.id === deptId)
+      const dept = departmentList.value.find(d => String(d.id) === deptId)
       stats[deptId] = { name: dept ? dept.name : record.departmentName || ('部门 ' + deptId), total: 0, checkedIn: 0, unchecked: 0 }
     }
     stats[deptId].total++
@@ -869,9 +834,12 @@ const departmentStats = computed(() => {
 async function fetchAdminRecords() {
   adminLoading.value = true
   try {
+    const hasFilter = adminDeptId.value || adminStatus.value || adminDateRange.value
+    const fetchSize = hasFilter ? adminSize.value : 500
+    
     const res = await getAdminRecords({
       page: adminPage.value,
-      size: adminSize.value,
+      size: fetchSize,
       departmentId: adminDeptId.value,
       status: adminStatus.value || undefined,
       startDate: adminDateRange.value ? adminDateRange.value[0] : undefined,
@@ -888,44 +856,18 @@ async function fetchAdminRecords() {
   }
 }
 
-// 手动发布考勤弹窗
-const publishDialogVisible = ref(false)
-const publishDeptId = ref(undefined)
-const publishTargetDate = ref(new Date().toISOString().split('T')[0])
-const publishSessionName = ref('')
-const publishLoading = ref(false)
-
-function openPublishModal() {
-  publishTargetDate.value = new Date().toISOString().split('T')[0]
-  publishSessionName.value = ''
-  publishDeptId.value = departmentList.value[0]?.id || undefined
-  publishDialogVisible.value = true
-}
-
-async function handlePublishSubmit() {
-  if (!publishDeptId.value) {
-    ElMessage.warning('请选择目标发布部门')
-    return
-  }
-  publishLoading.value = true
-  try {
-    const res = await publishDepartmentAttendance(publishDeptId.value, publishTargetDate.value, publishSessionName.value)
-    if (res && res.code === 200) {
-      ElMessage.success(res.message || '考勤任务发布成功')
-      publishDialogVisible.value = false
-      fetchAdminRecords()
-    }
-  } catch (e) {
-    ElMessage.error(e.response?.data?.message || '发布任务失败')
-  } finally {
-    publishLoading.value = false
-  }
-}
-
 // ================= Tab 3: 部门独立考勤规则维护 =================
 const ruleLoading = ref(false)
 const ruleList = ref([])
 const filterRuleDeptId = ref(undefined)
+const ruleCurrentPage = ref(1)
+const rulePageSize = ref(5)
+
+const paginatedRuleList = computed(() => {
+  const start = (ruleCurrentPage.value - 1) * rulePageSize.value
+  const end = start + rulePageSize.value
+  return ruleList.value.slice(start, end)
+})
 
 const ruleDialogVisible = ref(false)
 const ruleForm = ref({
@@ -1473,5 +1415,9 @@ onMounted(() => {
 
 .text-muted {
   color: #94a3b8;
+}
+
+.replenish-btn {
+  color: white !important;
 }
 </style>

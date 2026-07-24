@@ -62,6 +62,12 @@ public class DepartmentController {
         return ApiResult.success(null, request.status() == 1 ? "已启用" : "已停用");
     }
 
+    @DeleteMapping("/{id}")
+    public ApiResult<Void> delete(@PathVariable Long id) {
+        departmentService.delete(id);
+        return ApiResult.success(null, "部门删除成功");
+    }
+
     @GetMapping("/active")
     public ApiResult<List<DepartmentResponse>> listActive() {
         return ApiResult.success(departmentService.listAllActive());

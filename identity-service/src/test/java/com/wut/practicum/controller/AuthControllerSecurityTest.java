@@ -26,14 +26,32 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(controllers = AuthController.class, properties = {
         "spring.config.import=", "spring.cloud.nacos.config.enabled=false",
         "spring.cloud.nacos.discovery.enabled=false"})
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class, TraceIdFilter.class, GlobalExceptionHandler.class})
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class, TraceIdFilter.class, GlobalExceptionHandler.class, AuthControllerSecurityTest.MybatisMockConfig.class})
 class AuthControllerSecurityTest {
+    @org.springframework.boot.test.context.TestConfiguration
+    static class MybatisMockConfig {
+        @org.springframework.context.annotation.Bean
+        public org.apache.ibatis.session.SqlSessionFactory sqlSessionFactory() {
+            org.apache.ibatis.session.SqlSessionFactory factory = mock(org.apache.ibatis.session.SqlSessionFactory.class);
+            org.apache.ibatis.session.Configuration config = new org.apache.ibatis.session.Configuration();
+            org.apache.ibatis.mapping.Environment env = new org.apache.ibatis.mapping.Environment(
+                    "development",
+                    new org.apache.ibatis.transaction.jdbc.JdbcTransactionFactory(),
+                    mock(javax.sql.DataSource.class)
+            );
+            config.setEnvironment(env);
+            when(factory.getConfiguration()).thenReturn(config);
+            return factory;
+        }
+    }
+
     @Autowired MockMvc mvc;
     @MockitoBean UserService userService;
     @MockitoBean SessionStore sessions;
     @MockitoBean JwtService jwtService;
     @MockitoBean UserMapper userMapper;
     @MockitoBean EmployeeMapper employeeMapper;
+    @MockitoBean com.wut.practicum.mapper.DepartmentMapper departmentMapper;
     @MockitoBean EmployeeService employeeService;
 
     @Test

@@ -108,7 +108,14 @@ public class EmployeeServiceImpl implements EmployeeService {
         emp.setEmail(request.email());
 
         if (request.hireDate() != null && !request.hireDate().isBlank()) {
-            emp.setHireDate(LocalDate.parse(request.hireDate()));
+            String dateStr = request.hireDate();
+            if (dateStr.contains("T")) {
+                dateStr = dateStr.substring(0, dateStr.indexOf("T"));
+            }
+            if (dateStr.length() > 10) {
+                dateStr = dateStr.substring(0, 10);
+            }
+            emp.setHireDate(LocalDate.parse(dateStr));
         } else {
             emp.setHireDate(LocalDate.now());
         }
@@ -154,7 +161,14 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (request.email() != null) emp.setEmail(request.email());
         if (request.status() != null) emp.setStatus(request.status());
         if (request.hireDate() != null && !request.hireDate().isBlank()) {
-            emp.setHireDate(LocalDate.parse(request.hireDate()));
+            String dateStr = request.hireDate();
+            if (dateStr.contains("T")) {
+                dateStr = dateStr.substring(0, dateStr.indexOf("T"));
+            }
+            if (dateStr.length() > 10) {
+                dateStr = dateStr.substring(0, 10);
+            }
+            emp.setHireDate(LocalDate.parse(dateStr));
         }
         if (request.workYears() != null) emp.setWorkYears(request.workYears());
 
@@ -176,31 +190,7 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new BusinessException(2001, HttpStatus.NOT_FOUND, "员工不存在");
         }
 
-        // 2. 检查员工是否已有账号
-        SysUser existUser = userMapper.selectByEmployeeId(employeeId);
-        if (existUser != null) {
-            throw new BusinessException(2007, HttpStatus.BAD_REQUEST, "该员工已有系统账号");
-        }
-
-        // 3. 确定用户名：优先使用请求中的，否则默认用员工工号
-        String username = (request.username() != null && !request.username().isBlank())
-                ? request.username()
-                : emp.getEmployeeNo();
-
-        // 4. 检查用户名是否被占用
-        SysUser userByUsername = userMapper.selectByUsername(username);
-        if (userByUsername != null) {
-            throw new BusinessException(2008, HttpStatus.BAD_REQUEST, "用户名已被使用");
-        }
-
-        // 5. 初次开通时密码全部统一默认 123456
-        String tempPassword = "123456";
-
-        // 6. 创建系统用户
-        SysUser newUser = new SysUser();
-        newUser.setUsername(username);
-        newUser.setPasswordHash(passwordEncoder.encode(tempPassword)); // BCrypt加密
-
+        // 2. 确定目标角色
         String targetRole = "EMPLOYEE";
         if (request.role() != null && !request.role().isBlank()) {
             String r = request.role().trim().toUpperCase();
@@ -213,6 +203,32 @@ public class EmployeeServiceImpl implements EmployeeService {
             targetRole = "DEPT_MANAGER";
         }
 
+        // 3. 检查员工是否已有账号，若已存在，直接升级/调整其角色
+        SysUser existUser = userMapper.selectByEmployeeId(employeeId);
+        if (existUser != null) {
+            userMapper.updateRole(existUser.getId(), targetRole);
+            log.info("员工已存在账号，调整角色为: userId={}, employeeId={}, targetRole={}", existUser.getId(), employeeId, targetRole);
+            return "SUCCESS_ROLE_UPDATED";
+        }
+
+        // 4. 确定用户名：优先使用请求中的，否则默认用员工工号
+        String username = (request.username() != null && !request.username().isBlank())
+                ? request.username()
+                : emp.getEmployeeNo();
+
+        // 5. 检查用户名是否被占用
+        SysUser userByUsername = userMapper.selectByUsername(username);
+        if (userByUsername != null) {
+            throw new BusinessException(2008, HttpStatus.BAD_REQUEST, "用户名已被使用");
+        }
+
+        // 6. 初次开通时密码全部统一默认 123456
+        String tempPassword = "123456";
+
+        // 7. 创建系统用户
+        SysUser newUser = new SysUser();
+        newUser.setUsername(username);
+        newUser.setPasswordHash(passwordEncoder.encode(tempPassword)); // BCrypt加密
         newUser.setRole(targetRole);
         newUser.setStatus(1); // 启用
         newUser.setEmployeeId(employeeId);
@@ -309,11 +325,16 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new BusinessException(400, HttpStatus.BAD_REQUEST, "文件内容为空");
         }
 
-        // 判断第 0 行是否为表头 (如 姓名, 部门, 职位, 电话号码)
+        // 判断第 0 行是否为表头 (如 工号, 姓名, 部门, 职位, 电话号码)
         int startRow = 0;
         String[] header = rows.get(0);
-        if (header.length > 0 && (header[0].contains("姓名") || header[0].contains("Name") || header[0].contains("部门"))) {
+        boolean hasEmpNoColumn = false;
+
+        if (header.length > 0 && (header[0].contains("工号") || header[0].contains("姓名") || header[0].contains("Name") || header[0].contains("部门"))) {
             startRow = 1;
+            if (header[0].contains("工号") || header[0].contains("No") || header.length >= 5) {
+                hasEmpNoColumn = true;
+            }
         }
 
         int successCount = 0;
@@ -326,10 +347,30 @@ public class EmployeeServiceImpl implements EmployeeService {
             String[] row = rows.get(i);
             if (row == null || row.length == 0) continue;
 
-            String name = getCell(row, 0);
-            String deptName = getCell(row, 1);
-            String position = getCell(row, 2);
-            String phone = getCell(row, 3);
+            String empNo = null;
+            String name = null;
+            String deptName = null;
+            String position = null;
+            String phone = null;
+            String idNumber = null;
+            String email = null;
+
+            if (hasEmpNoColumn) {
+                empNo = getCell(row, 0);
+                name = getCell(row, 1);
+                deptName = getCell(row, 2);
+                position = getCell(row, 3);
+                phone = getCell(row, 4);
+                idNumber = getCell(row, 5);
+                email = getCell(row, 6);
+            } else {
+                name = getCell(row, 0);
+                deptName = getCell(row, 1);
+                position = getCell(row, 2);
+                phone = getCell(row, 3);
+                idNumber = getCell(row, 4);
+                email = getCell(row, 5);
+            }
 
             if ((name == null || name.isBlank()) && (phone == null || phone.isBlank())) {
                 continue;
@@ -339,6 +380,12 @@ public class EmployeeServiceImpl implements EmployeeService {
                 errors.add("第 " + lineNum + " 行：姓名不能为空");
                 failCount++;
                 continue;
+            }
+
+            if (empNo == null || empNo.isBlank()) {
+                empNo = generateAutoEmployeeNo();
+            } else {
+                empNo = empNo.trim();
             }
 
             // 匹配部门
@@ -360,10 +407,12 @@ public class EmployeeServiceImpl implements EmployeeService {
 
             try {
                 EmployeeCreateRequest req = new EmployeeCreateRequest(
-                        null, name.trim(), deptId,
+                        empNo, name.trim(), deptId,
                         position != null && !position.isBlank() ? position.trim() : null,
                         phone != null && !phone.isBlank() ? phone.trim() : null,
-                        null, null, null, null
+                        idNumber != null && !idNumber.isBlank() ? idNumber.trim() : null,
+                        email != null && !email.isBlank() ? email.trim() : null,
+                        null, null
                 );
                 EmployeeResponse created = create(req);
 

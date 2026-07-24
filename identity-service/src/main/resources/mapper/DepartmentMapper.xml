@@ -82,6 +82,10 @@
         UPDATE sys_department SET status = #{status}, update_time = NOW() WHERE id = #{id}
     </update>
 
+    <delete id="deleteById">
+        DELETE FROM sys_department WHERE id = #{id}
+    </delete>
+
     <select id="selectAllActive" resultMap="DepartmentMap">
         <include refid="selectWithLeader"/>
         WHERE d.status = 1 ORDER BY d.sort ASC, d.id ASC

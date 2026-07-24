@@ -8,7 +8,7 @@
           <p class="page-subtitle">{{ isAdmin ? '发布、下架、重构 ES 索引与维护公司公告制度规范' : '浏览全公司及本部门最新发布的通知公告与规章制度' }}</p>
         </div>
         <div style="display: flex; gap: 12px;">
-          <el-button v-if="isAdmin" type="warning" plain size="large" :loading="reindexLoading" @click="handleReindexEs">
+          <el-button v-if="isAdmin" type="danger" size="large" :loading="reindexLoading" @click="handleReindexEs" style="color: #ffffff;">
             <el-icon><RefreshRight /></el-icon>
             重构 ES 索引
           </el-button>
@@ -140,7 +140,7 @@
 
         <transition name="content-fade" mode="out-in">
           <div class="content-list" :key="activeTab">
-            <div class="content-card" v-for="item in currentTabList" :key="item.id">
+            <div class="content-card" v-for="item in paginatedCurrentTabList" :key="item.id">
               <div class="content-main">
                 <div class="content-tags">
                   <span class="content-tag" :class="item.type === 'ANNOUNCEMENT' ? 'announcement-tag' : 'policy-tag'">
@@ -161,14 +161,24 @@
               <div class="content-actions">
                 <el-button v-if="canPublish && item.status === 'DRAFT'" type="primary" size="small" @click="publish(item.id)">发布上架</el-button>
                 <el-button v-if="canPublish && item.status === 'DRAFT'" size="small" @click="openCreateModal(item)">编辑草稿</el-button>
-                <el-button v-if="canPublish && item.status === 'DRAFT'" type="danger" plain size="small" @click="deleteDraft(item.id)">删除</el-button>
-                <el-button v-if="canUnpublish(item)" type="danger" size="small" @click="unpublish(item.id)">下架</el-button>
+                <el-button v-if="canPublish && item.status === 'DRAFT'" type="danger" size="small" @click="deleteDraft(item.id)" style="color: #ffffff;">删除</el-button>
+                <el-button v-if="canUnpublish(item)" type="warning" size="small" @click="unpublishAndEdit(item)">下架编辑</el-button>
                 <el-button type="text" size="small" @click="viewDetail(item)">查看详情</el-button>
               </div>
             </div>
             <el-empty v-if="currentTabList.length === 0" description="暂无相关公告或制度文件" />
           </div>
         </transition>
+        <div class="pagination-container" v-if="currentTabList.length > 0">
+          <el-pagination
+            v-model:current-page="contentCurrentPage"
+            v-model:page-size="contentPageSize"
+            :page-sizes="[5, 10]"
+            :total="currentTabList.length"
+            layout="total, sizes, prev, pager, next, jumper"
+            style="float: right; margin-top: 16px;"
+          />
+        </div>
       </div>
     </div>
 
@@ -194,7 +204,7 @@
         <div class="detail-divider"></div>
         <div class="detail-body" v-html="selectedItem?.highlightBody || selectedItem?.body"></div>
         <div class="detail-actions" v-if="canUnpublish(selectedItem)" style="margin-top: 20px;">
-          <el-button type="danger" size="small" @click="unpublish(selectedItem.id); detailVisible = false;">下架公告</el-button>
+          <el-button type="warning" size="small" @click="unpublishAndEdit(selectedItem); detailVisible = false;">下架编辑</el-button>
         </div>
       </div>
     </el-dialog>
@@ -300,7 +310,11 @@ const createForm = reactive({
 
 const canUnpublish = (item) => {
   if (!item || item.status !== 'PUBLISHED') return false
-  return isAdmin.value || isDeptAdmin.value
+  if (isAdmin.value) return true
+  if (isDeptAdmin.value) {
+    return item.scope !== 'ALL'
+  }
+  return false
 }
 
 const typeMap = {
@@ -314,6 +328,9 @@ const statusMap = {
   UNPUBLISHED: '已下架'
 }
 
+const contentCurrentPage = ref(1)
+const contentPageSize = ref(5)
+
 const currentTabList = computed(() => {
   let filtered = list.value.filter(item => {
     if (activeTab.value === 'ANNOUNCEMENT') {
@@ -326,6 +343,12 @@ const currentTabList = computed(() => {
     filtered = filtered.filter(item => item.category === selectedCategory.value)
   }
   return filtered
+})
+
+const paginatedCurrentTabList = computed(() => {
+  const start = (contentCurrentPage.value - 1) * contentPageSize.value
+  const end = start + contentPageSize.value
+  return currentTabList.value.slice(start, end)
 })
 
 const loadDepartments = async () => {
@@ -358,11 +381,16 @@ const loadContents = async () => {
     let rawRecords = []
     
     if (isAdmin.value) {
-      // 超级管理员：获取全量库中的所有内容（包括草稿、已发布、已下架）
-      const res = await getAdminContentsApi(params)
-      if (res && res.data) {
-        rawRecords = res.data.records || res.data.list || []
-      }
+      const empRes = await getEmployeeContentsApi(params).catch(() => null)
+      const adminRes = await getAdminContentsApi(params).catch(() => null)
+      
+      const empList = (empRes && empRes.data) ? (empRes.data.list || empRes.data.records || []) : []
+      const adminList = (adminRes && adminRes.data) ? (adminRes.data.records || adminRes.data.list || []) : []
+      
+      const map = new Map()
+      empList.forEach(item => map.set(item.id, item))
+      adminList.forEach(item => map.set(item.id, item))
+      rawRecords = Array.from(map.values())
     } else if (isDeptAdmin.value) {
       // 部门经理：获取面向全体发出的已发布公司公告 + 部门经理自己创建的草稿
       const empRes = await getEmployeeContentsApi(params).catch(() => null)
@@ -539,6 +567,17 @@ const unpublish = async (id) => {
     await unpublishContentApi(id)
     ElMessage.success('公告已下架，已从 ES 检索索引库移除')
     loadContents()
+  } catch (err) {
+    ElMessage.error(err.response?.data?.message || '下架失败')
+  }
+}
+
+const unpublishAndEdit = async (item) => {
+  try {
+    await unpublishContentApi(item.id)
+    ElMessage.success('公告已下架并进入草稿状态，可进行编辑')
+    loadContents()
+    openCreateModal(item)
   } catch (err) {
     ElMessage.error(err.response?.data?.message || '下架失败')
   }

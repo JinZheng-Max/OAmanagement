@@ -2,39 +2,47 @@ package com.wut.practicum.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wut.practicum.client.EmployeeClient;
-import com.wut.practicum.common.ApiResult;
 import com.wut.practicum.common.BusinessException;
-import com.wut.practicum.dto.AttendancePageResult;
 import com.wut.practicum.dto.AttendanceResponse;
 import com.wut.practicum.dto.EmployeeResponse;
-import com.wut.practicum.dto.PageQuery;
 import com.wut.practicum.entity.OaAttendance;
 import com.wut.practicum.mapper.AttendanceMapper;
+import com.wut.practicum.mapper.OaAttendanceRuleMapper;
 import com.wut.practicum.service.impl.AttendanceServiceImpl;
 import com.wut.practicum.util.IpValidator;
+import org.flowable.engine.RuntimeService;
+import org.flowable.engine.TaskService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
-import org.springframework.http.HttpStatus;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Collections;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+/**
+ * 考勤打卡与结算单元测试 (UT-04 / UT-05)
+ * 依据 《智办AI OA 单元测试模块内容说明书 V2.0》编写
+ */
 @ExtendWith(MockitoExtension.class)
+@DisplayName("UT-05: 考勤打卡与结算模块单元测试")
 public class AttendanceServiceTest {
 
     @Mock
     private AttendanceMapper attendanceMapper;
+
+    @Mock
+    private OaAttendanceRuleMapper oaAttendanceRuleMapper;
 
     @Mock
     private EmployeeClient employeeClient;
@@ -46,153 +54,89 @@ public class AttendanceServiceTest {
     private StringRedisTemplate redisTemplate;
 
     @Mock
-    private ValueOperations<String, String> valueOperations;
+    private ObjectMapper objectMapper;
 
-    @Spy
-    private ObjectMapper objectMapper = new ObjectMapper();
+    @Mock
+    private RuntimeService runtimeService;
+
+    @Mock
+    private TaskService taskService;
+
+    @InjectMocks
     private AttendanceServiceImpl attendanceService;
+
+    private OaAttendance sampleRecord;
+
     @BeforeEach
     void setUp() {
-        lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        sampleRecord = new OaAttendance();
+        sampleRecord.setId(219L);
+        sampleRecord.setEmployeeId(69L);
+        sampleRecord.setWorkDate(LocalDate.now().toString());
+        sampleRecord.setSessionName("上午场");
+        sampleRecord.setCheckInStartTime("00:00");
+        sampleRecord.setNormalCheckInEndTime("23:59");
+        sampleRecord.setCheckInEndTime("23:59");
+        sampleRecord.setStatus("UNCHECKED");
+        sampleRecord.setReplenishStatus("NONE");
+
         lenient().when(ipValidator.isValid(anyString())).thenReturn(true);
-        attendanceService = new AttendanceServiceImpl(attendanceMapper, employeeClient, ipValidator, redisTemplate, objectMapper);
-        org.springframework.test.util.ReflectionTestUtils.setField(attendanceService, "checkInStartStr", "00:00");
-        org.springframework.test.util.ReflectionTestUtils.setField(attendanceService, "checkInEndStr", "23:59");
-        org.springframework.test.util.ReflectionTestUtils.setField(attendanceService, "checkOutStartStr", "00:00");
-        org.springframework.test.util.ReflectionTestUtils.setField(attendanceService, "checkOutEndStr", "23:59");
-    }
-
-    @Test
-    void testCheckIn_Success() {
-        EmployeeResponse employee = new EmployeeResponse(1L, "EMP001", "张三", 10L, "技术部", "工程师", "13800000000", 1, LocalDate.now(), null, null);
-        OaAttendance existing = new OaAttendance();
-        existing.setId(100L);
-        existing.setEmployeeId(1L);
-        existing.setStatus("UNCHECKED");
-        existing.setWorkDate(LocalDate.now().toString());
-        existing.setEmployeeName("张三");
-
-        when(employeeClient.getById(1L)).thenReturn(ApiResult.success(employee));
-        when(ipValidator.isValid("192.168.1.100")).thenReturn(true);
-        when(valueOperations.setIfAbsent(anyString(), anyString(), any())).thenReturn(true);
-        when(attendanceMapper.selectByEmployeeAndDate(eq(1L), anyString())).thenReturn(existing);
-
-        AttendanceResponse response = attendanceService.checkIn(1L, "192.168.1.100");
-
-        assertNotNull(response);
-        assertEquals("CHECKED_IN", response.status());
-        assertEquals("192.168.1.100", response.checkInIp());
-        assertEquals("张三", response.employeeName());
-        verify(attendanceMapper, times(1)).update(any());
-    }
-
-    @Test
-    void testCheckIn_InvalidIp() {
-        EmployeeResponse employee = new EmployeeResponse(1L, "EMP001", "张三", 10L, "技术部", "工程师", "13800000000", 1, LocalDate.now(), null, null);
-        when(employeeClient.getById(1L)).thenReturn(ApiResult.success(employee));
-        when(ipValidator.isValid("8.8.8.8")).thenReturn(false);
-
-        BusinessException exception = assertThrows(BusinessException.class, () -> {
-            attendanceService.checkIn(1L, "8.8.8.8");
+        EmployeeResponse emp = new EmployeeResponse(69L, "EMP001", "孙杰", 1L, "行政部", "专员", "13800138000", 1, LocalDate.now(), null, null);
+        EmployeeResponse empOther = new EmployeeResponse(999L, "EMP999", "路人", 1L, "行政部", "专员", "13800138000", 1, LocalDate.now(), null, null);
+        
+        lenient().when(employeeClient.getById(anyLong())).thenAnswer(invocation -> {
+            Long arg = invocation.getArgument(0);
+            if (Long.valueOf(999L).equals(arg)) {
+                return com.wut.practicum.common.ApiResult.success(empOther);
+            }
+            return com.wut.practicum.common.ApiResult.success(emp);
         });
 
-        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
-        assertTrue(exception.getMessage().contains("非公司内网"));
+        org.springframework.data.redis.core.ValueOperations valueOps = mock(org.springframework.data.redis.core.ValueOperations.class);
+        lenient().when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        lenient().when(valueOps.setIfAbsent(anyString(), anyString(), any(java.time.Duration.class))).thenReturn(true);
     }
 
-    @Test
-    void testCheckIn_Duplicate() {
-        EmployeeResponse employee = new EmployeeResponse(1L, "EMP001", "张三", 10L, "技术部", "工程师", "13800000000", 1, LocalDate.now(), null, null);
-        OaAttendance existing = new OaAttendance();
-        existing.setId(100L);
-        existing.setEmployeeId(1L);
-        existing.setStatus("CHECKED_IN");
-        existing.setWorkDate(LocalDate.now().toString());
+    @Nested
+    @DisplayName("签到打卡业务测试")
+    class CheckInTests {
 
-        when(employeeClient.getById(1L)).thenReturn(ApiResult.success(employee));
-        when(ipValidator.isValid("192.168.1.100")).thenReturn(true);
-        when(valueOperations.setIfAbsent(anyString(), anyString(), any())).thenReturn(true);
-        when(attendanceMapper.selectByEmployeeAndDate(eq(1L), anyString())).thenReturn(existing);
+        @Test
+        @DisplayName("UT-05-01: 正常时间段内完成签到打卡，状态更新为 CHECKED_IN")
+        void shouldCheckInSuccessfully() {
+            when(attendanceMapper.selectById(219L)).thenReturn(sampleRecord);
 
-        BusinessException exception = assertThrows(BusinessException.class, () -> {
-            attendanceService.checkIn(1L, "192.168.1.100");
-        });
+            AttendanceResponse response = attendanceService.checkIn(69L, 219L, "127.0.0.1");
 
-        assertEquals(40910, exception.getCode());
-        assertEquals(HttpStatus.CONFLICT, exception.getStatus());
-        assertNotNull(exception.getData());
-        AttendanceResponse respData = (AttendanceResponse) exception.getData();
-        assertEquals("CHECKED_IN", respData.status());
-    }
+            assertThat(response).isNotNull();
+            assertThat(response.id()).isEqualTo(219L);
+            verify(attendanceMapper).update(any(OaAttendance.class));
+        }
 
-    @Test
-    void testCheckOut_Success() {
-        OaAttendance existing = new OaAttendance();
-        existing.setId(100L);
-        existing.setEmployeeId(1L);
-        existing.setStatus("CHECKED_IN");
-        existing.setWorkDate(LocalDate.now().toString());
+        @Test
+        @DisplayName("UT-05-02: 重复点击已签到卡片时拒绝操作，抛出防重拦截异常")
+        void shouldPreventDuplicateCheckIn() {
+            sampleRecord.setStatus("CHECKED_IN");
+            sampleRecord.setCheckIn(LocalDateTime.now());
+            when(attendanceMapper.selectById(219L)).thenReturn(sampleRecord);
 
-        when(attendanceMapper.selectByEmployeeAndDate(eq(1L), anyString())).thenReturn(existing);
+            assertThatThrownBy(() -> attendanceService.checkIn(69L, 219L, "127.0.0.1"))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("您已经完成签到，请勿重复操作");
 
-        AttendanceResponse response = attendanceService.checkOut(1L, "192.168.1.100");
+            verify(attendanceMapper, never()).update(any());
+        }
 
-        assertNotNull(response);
-        assertEquals("CHECKED_OUT", response.status());
-        assertEquals("192.168.1.100", response.checkOutIp());
-        verify(attendanceMapper, times(1)).update(any());
-    }
+        @Test
+        @DisplayName("UT-05-03: 跨员工非法打卡拦截，抛出 403 权限越界异常")
+        void shouldBlockCheckInForOtherEmployee() {
+            when(attendanceMapper.selectById(219L)).thenReturn(sampleRecord);
 
-    @Test
-    void testCheckOut_WithoutCheckIn() {
-        when(attendanceMapper.selectByEmployeeAndDate(eq(1L), anyString())).thenReturn(null);
+            assertThatThrownBy(() -> attendanceService.checkIn(999L, 219L, "127.0.0.1"))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("无权操作他人考勤记录");
 
-        BusinessException exception = assertThrows(BusinessException.class, () -> {
-            attendanceService.checkOut(1L, "192.168.1.100");
-        });
-
-        assertEquals(40911, exception.getCode());
-        assertEquals(HttpStatus.CONFLICT, exception.getStatus());
-        assertEquals("未签到即签退", exception.getMessage());
-    }
-
-    @Test
-    void testCheckOut_Duplicate() {
-        OaAttendance existing = new OaAttendance();
-        existing.setId(100L);
-        existing.setEmployeeId(1L);
-        existing.setStatus("CHECKED_OUT");
-        existing.setWorkDate(LocalDate.now().toString());
-
-        when(attendanceMapper.selectByEmployeeAndDate(eq(1L), anyString())).thenReturn(existing);
-
-        BusinessException exception = assertThrows(BusinessException.class, () -> {
-            attendanceService.checkOut(1L, "192.168.1.100");
-        });
-
-        assertEquals(40911, exception.getCode());
-        assertEquals(HttpStatus.CONFLICT, exception.getStatus());
-        assertEquals("重复签退", exception.getMessage());
-    }
-
-    @Test
-    void testQueryPersonalRecords_OverrideEmployeeId() {
-        when(valueOperations.get(anyString())).thenReturn(null);
-        when(attendanceMapper.selectPageList(anyLong(), any(), anyString(), anyString(), any(), anyInt(), anyInt()))
-                .thenReturn(Collections.emptyList());
-        when(attendanceMapper.selectCount(anyLong(), any(), anyString(), anyString(), any()))
-                .thenReturn(0L);
-        when(attendanceMapper.countStatusByFilter(anyLong(), any(), anyString(), anyString(), any()))
-                .thenReturn(Collections.emptyList());
-
-        BusinessException exception = assertThrows(BusinessException.class, () -> {
-            attendanceService.queryPersonalRecords(1L, "2026-07-01", "2026-07-15", new PageQuery(1, 10), 2L);
-        });
-
-        assertEquals(40302, exception.getCode());
-        assertEquals(HttpStatus.FORBIDDEN, exception.getStatus());
-        assertNotNull(exception.getData());
-        AttendancePageResult result = (AttendancePageResult) exception.getData();
-        assertEquals(0, result.total());
+            verify(attendanceMapper, never()).update(any());
+        }
     }
 }

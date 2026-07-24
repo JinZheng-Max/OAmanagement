@@ -25,7 +25,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (header != null && header.startsWith("Bearer ")) {
             try {
                 CurrentUser user = jwtService.parse(header.substring(7));
-                if (sessionStore.isActive(user.jti())) {
+                boolean active = false;
+                try {
+                    active = sessionStore.isActive(user.jti());
+                } catch (Exception e) {
+                    active = true;
+                }
+                if (active) {
                     String rawRole = user.role() != null ? user.role() : "";
                     String roleName = rawRole.startsWith("ROLE_") ? rawRole.substring(5) : rawRole;
                     List<SimpleGrantedAuthority> authorities = List.of(

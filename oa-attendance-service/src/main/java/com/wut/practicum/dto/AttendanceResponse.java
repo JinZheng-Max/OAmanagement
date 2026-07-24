@@ -11,6 +11,8 @@ public record AttendanceResponse(
         Long employeeId,
         @Schema(description = "员工姓名", example = "张三")
         String employeeName,
+        @Schema(description = "部门ID", example = "1")
+        Long departmentId,
         @Schema(description = "部门名称", example = "技术部")
         String departmentName,
         @Schema(description = "工作日期 (yyyy-MM-dd)", example = "2026-07-20")

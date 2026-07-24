@@ -15,6 +15,8 @@
         <result property="departmentName" column="department_name"/>
         <result property="position" column="position"/>
         <result property="phone" column="phone"/>
+        <result property="idNumber" column="id_number"/>
+        <result property="email" column="email"/>
         <result property="status" column="status"/>
         <result property="hasAccount" column="has_account"/>
         <result property="userId" column="user_id"/>
@@ -37,6 +39,8 @@
             d.name AS department_name,
             e.position,
             e.phone,
+            e.id_number,
+            e.email,
             e.status,
             IF(ISNULL(su.id), FALSE, TRUE) AS has_account,  <!-- 判断是否已开通系统账号 -->
             su.id AS user_id,               <!-- 关联用户ID，用于重置密码等操作 -->

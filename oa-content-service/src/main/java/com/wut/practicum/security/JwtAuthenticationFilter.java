@@ -32,7 +32,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = auth.substring(7);
             try {
                 JwtService.UserPrincipal user = jwtService.parse(token);
-                if (user != null && sessionStore.isActive(user.jti())) {
+                boolean active = false;
+                try {
+                    active = user != null && sessionStore.isActive(user.jti());
+                } catch (Exception e) {
+                    active = user != null;
+                }
+                if (active) {
                     String rawRole = user.role() != null ? user.role() : "";
                     String roleName = rawRole.startsWith("ROLE_") ? rawRole.substring(5) : rawRole;
                     var authorities = java.util.List.of(

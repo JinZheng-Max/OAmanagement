@@ -5,7 +5,7 @@
       <p class="page-subtitle">{{ isAdmin ? '实时监控组织运营数据' : '快速访问您的工作信息' }}</p>
     </div>
 
-    <div class="stats-grid" v-if="isAdmin">
+    <div class="stats-grid admin-stats" v-if="isAdmin">
       <div class="stat-card employee-card">
         <div class="stat-icon">
           <el-icon><User /></el-icon>
@@ -32,17 +32,17 @@
           <span>+5%</span>
         </div>
       </div>
-      <div class="stat-card attendance-card">
+      <div class="stat-card pending-record-card">
         <div class="stat-icon">
-          <el-icon><Clock /></el-icon>
+          <el-icon><EditPen /></el-icon>
         </div>
         <div class="stat-content">
-          <div class="stat-value">{{ metrics.todayAttendanceRate }}</div>
-          <div class="stat-label">今日考勤到岗率</div>
+          <div class="stat-value">{{ metrics.pendingRecordCount }}</div>
+          <div class="stat-label">待补录条数</div>
         </div>
-        <div class="stat-trend up">
-          <el-icon><CircleCheck /></el-icon>
-          <span>正常</span>
+        <div class="stat-trend" :class="metrics.pendingRecordCount > 0 ? 'warn' : 'up'">
+          <el-icon><WarnTriangleFilled v-if="metrics.pendingRecordCount > 0" /><CircleCheck v-else /></el-icon>
+          <span>{{ metrics.pendingRecordCount > 0 ? '待处理' : '无' }}</span>
         </div>
       </div>
       <div class="stat-card leave-card">
@@ -51,24 +51,11 @@
         </div>
         <div class="stat-content">
           <div class="stat-value">{{ metrics.pendingLeaveCount }}</div>
-          <div class="stat-label">待处理审批单</div>
+          <div class="stat-label">待审批请假条数</div>
         </div>
-        <div class="stat-trend warn">
-          <el-icon><WarnTriangleFilled /></el-icon>
-          <span>待处理</span>
-        </div>
-      </div>
-      <div class="stat-card content-card">
-        <div class="stat-icon">
-          <el-icon><Document /></el-icon>
-        </div>
-        <div class="stat-content">
-          <div class="stat-value">{{ metrics.publishedContentCount }}</div>
-          <div class="stat-label">全量同步知识数</div>
-        </div>
-        <div class="stat-trend up">
-          <el-icon><Upload /></el-icon>
-          <span>已同步</span>
+        <div class="stat-trend" :class="metrics.pendingLeaveCount > 0 ? 'warn' : 'up'">
+          <el-icon><WarnTriangleFilled v-if="metrics.pendingLeaveCount > 0" /><CircleCheck v-else /></el-icon>
+          <span>{{ metrics.pendingLeaveCount > 0 ? '待处理' : '无' }}</span>
         </div>
       </div>
     </div>
@@ -89,28 +76,28 @@
       </div>
       <div class="stat-card my-leave-card">
         <div class="stat-icon">
-          <el-icon><Ticket /></el-icon>
+          <el-icon><Timer /></el-icon>
         </div>
         <div class="stat-content">
-          <div class="stat-value">{{ myStats.annualLeaveRemaining }}</div>
-          <div class="stat-label">剩余年假天数</div>
+          <div class="stat-value">{{ myStats.pendingLeaveCount }}</div>
+          <div class="stat-label">{{ isDeptAdmin ? '部门员工的待审批请假条数' : '待请假审批条数' }}</div>
         </div>
-        <div class="stat-trend up">
-          <el-icon><CircleCheck /></el-icon>
-          <span>可用</span>
+        <div class="stat-trend" :class="myStats.pendingLeaveCount > 0 ? 'warn' : 'up'">
+          <el-icon><WarnTriangleFilled v-if="myStats.pendingLeaveCount > 0" /><CircleCheck v-else /></el-icon>
+          <span>{{ myStats.pendingLeaveCount > 0 ? '待处理' : '无' }}</span>
         </div>
       </div>
       <div class="stat-card my-apply-card">
         <div class="stat-icon">
-          <el-icon><Timer /></el-icon>
+          <el-icon><EditPen /></el-icon>
         </div>
         <div class="stat-content">
-          <div class="stat-value">{{ myStats.pendingApplyCount }}</div>
-          <div class="stat-label">待审批申请</div>
+          <div class="stat-value">{{ myStats.pendingRecordCount }}</div>
+          <div class="stat-label">{{ isDeptAdmin ? '部门员工的待审批补录条数' : '待补录审批条数' }}</div>
         </div>
-        <div class="stat-trend" :class="myStats.pendingApplyCount > 0 ? 'warn' : 'up'">
-          <el-icon><WarnTriangleFilled v-if="myStats.pendingApplyCount > 0" /><CircleCheck v-else /></el-icon>
-          <span>{{ myStats.pendingApplyCount > 0 ? '待处理' : '无' }}</span>
+        <div class="stat-trend" :class="myStats.pendingRecordCount > 0 ? 'warn' : 'up'">
+          <el-icon><WarnTriangleFilled v-if="myStats.pendingRecordCount > 0" /><CircleCheck v-else /></el-icon>
+          <span>{{ myStats.pendingRecordCount > 0 ? '待处理' : '无' }}</span>
         </div>
       </div>
       <div class="stat-card my-info-card">
@@ -120,10 +107,6 @@
         <div class="stat-content">
           <div class="stat-value">{{ myStats.departmentName }}</div>
           <div class="stat-label">所属部门</div>
-        </div>
-        <div class="stat-trend up">
-          <el-icon><OfficeBuilding /></el-icon>
-          <span>查看</span>
         </div>
       </div>
     </div>
@@ -147,21 +130,27 @@
             <span>审批管理</span>
           </div>
           <div class="action-btn" @click="goTo('/content')">
-            <el-icon class="action-icon"><EditPen /></el-icon>
-            <span>内容管理</span>
+            <el-icon class="action-icon"><Document /></el-icon>
+            <span>公告管理</span>
+          </div>
+          <div class="action-btn" @click="goTo('/ai-assistant')">
+            <el-icon class="action-icon"><ChatDotRound /></el-icon>
+            <span>AI助手</span>
           </div>
         </div>
       </div>
       <div class="info-panel">
         <div class="panel-header">
-          <h3>⚙️ 搜索引擎运维</h3>
+          <h3>📊 各部门待审批请假条数</h3>
         </div>
-        <div class="es-section">
-          <p class="es-desc">当底层数据库产生大规模脏数据或制度大面积变更导致高亮不同步时，可在此手动执行全量重置同步：</p>
-          <el-button type="danger" size="large" class="rebuild-btn" @click="rebuildIndex">
-            <el-icon><Refresh /></el-icon>
-            全量重建 Elasticsearch 索引
-          </el-button>
+        <div class="activity-list-scroll">
+          <div class="activity-item" v-for="(item, i) in departmentPendingLeaves" :key="i">
+            <div class="activity-dot" :class="item.count > 0 ? 'pending' : 'system'"></div>
+            <div class="activity-content">
+              <div class="activity-title">{{ item.departmentName }}: {{ item.count }} 条待审批</div>
+              <div class="activity-time">更新于 {{ item.updateTime }}</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -194,7 +183,7 @@
         <div class="panel-header">
           <h3>📢 最新公告</h3>
         </div>
-        <div class="news-list">
+        <div class="news-list-scroll">
           <div class="news-item" v-for="(item, i) in recentNews" :key="i" @click="goToContent(item)">
             <div class="news-tag" :class="item.type">{{ item.type === 'ANNOUNCEMENT' ? '公告' : '制度' }}</div>
             <div class="news-content">
@@ -206,26 +195,16 @@
       </div>
     </div>
 
-    <div class="bottom-panel" v-if="isAdmin">
+    <div class="bottom-panel single-card" v-if="isAdmin">
       <div class="chart-card">
         <div class="panel-header">
-          <h3>📈 本月考勤统计</h3>
+          <h3>📝 各部门待补录条数</h3>
         </div>
-        <div class="mini-chart">
-          <div class="chart-bar" v-for="(val, i) in attendanceChart" :key="i" :style="{ height: val + '%' }">
-            <span class="bar-label">{{ i + 1 }}日</span>
-          </div>
-        </div>
-      </div>
-      <div class="chart-card">
-        <div class="panel-header">
-          <h3>📊 各部门待审批动态</h3>
-        </div>
-        <div class="activity-list">
-          <div class="activity-item" v-for="(item, i) in departmentPendingLeaves" :key="i">
+        <div class="activity-list-scroll">
+          <div class="activity-item" v-for="(item, i) in departmentPendingRecords" :key="i">
             <div class="activity-dot" :class="item.count > 0 ? 'pending' : 'system'"></div>
             <div class="activity-content">
-              <div class="activity-title">{{ item.departmentName }}: {{ item.count }} 条待审批</div>
+              <div class="activity-title">{{ item.departmentName }}: {{ item.count }} 条待补录</div>
               <div class="activity-time">更新于 {{ item.updateTime }}</div>
             </div>
           </div>
@@ -238,7 +217,7 @@
         <div class="panel-header">
           <h3>📝 当前待请假审批</h3>
         </div>
-        <div class="leave-app-list">
+        <div class="leave-app-list-scroll">
           <div class="leave-app-item" v-for="(item, i) in deptPendingLeaves" :key="i">
             <div class="leave-app-time">{{ item.time }}</div>
             <div class="leave-app-content">
@@ -255,11 +234,20 @@
       </div>
       <div class="chart-card">
         <div class="panel-header">
-          <h3>📊 本月考勤趋势</h3>
+          <h3>📝 部门员工待审批补录</h3>
         </div>
-        <div class="mini-chart">
-          <div class="chart-bar" v-for="(val, i) in myAttendanceChart" :key="i" :style="{ height: val + '%' }">
-            <span class="bar-label">{{ i + 1 }}日</span>
+        <div class="leave-app-list-scroll">
+          <div class="leave-app-item" v-for="(item, i) in deptPendingReplenish" :key="i">
+            <div class="leave-app-time">{{ item.time }}</div>
+            <div class="leave-app-content">
+              <div class="leave-app-title">{{ item.employeeName }} - {{ item.sessionName }}</div>
+              <div class="leave-app-desc">{{ item.reason }}</div>
+            </div>
+            <div class="leave-app-status pending">待审批</div>
+          </div>
+          <div v-if="deptPendingReplenish.length === 0" class="empty-state">
+            <el-icon class="empty-icon"><CircleCheck /></el-icon>
+            <p>暂无待审批补录申请</p>
           </div>
         </div>
       </div>
@@ -270,7 +258,7 @@
         <div class="panel-header">
           <h3>📝 我的请假记录</h3>
         </div>
-        <div class="leave-app-list">
+        <div class="leave-app-list-scroll">
           <div class="leave-app-item" v-for="(item, i) in myLeaveApplications" :key="i">
             <div class="leave-app-time">{{ item.time }}</div>
             <div class="leave-app-content">
@@ -289,11 +277,22 @@
       </div>
       <div class="chart-card">
         <div class="panel-header">
-          <h3>📊 本月考勤趋势</h3>
+          <h3>📝 我的考勤补录</h3>
         </div>
-        <div class="mini-chart">
-          <div class="chart-bar" v-for="(val, i) in myAttendanceChart" :key="i" :style="{ height: val + '%' }">
-            <span class="bar-label">{{ i + 1 }}日</span>
+        <div class="leave-app-list-scroll">
+          <div class="leave-app-item" v-for="(item, i) in myReplenishRecords" :key="i">
+            <div class="leave-app-time">{{ item.time }}</div>
+            <div class="leave-app-content">
+              <div class="leave-app-title">{{ item.sessionName }}</div>
+              <div class="leave-app-desc">{{ item.reason }}</div>
+            </div>
+            <div class="leave-app-status" :class="item.status">
+              {{ item.status === 'approved' ? '已通过' : item.status === 'rejected' ? '已驳回' : '待审批' }}
+            </div>
+          </div>
+          <div v-if="myReplenishRecords.length === 0" class="empty-state">
+            <el-icon class="empty-icon"><Calendar /></el-icon>
+            <p>暂无补录记录</p>
           </div>
         </div>
       </div>
@@ -309,7 +308,7 @@ import { User, OfficeBuilding, Clock, Timer, Document, TrendCharts, CircleCheck,
 import { reindexEsApi, getEmployeeContentsApi } from '../api/content'
 import { getLeavePage } from '../api/leave'
 import { getDepartmentPage, getEmployeePage, getMyDepartment } from '../api/org'
-import { getAdminRecords } from '../api/attendance'
+import { getAdminRecords, getReplenishRecords } from '../api/attendance'
 
 const userId = ref(localStorage.getItem('userId') || null)
 
@@ -328,8 +327,8 @@ const userDepartmentId = ref(localStorage.getItem('departmentId') || null)
 
 const myStats = ref({
   monthAttendanceDays: 22,
-  annualLeaveRemaining: 5,
-  pendingApplyCount: 0,
+  pendingLeaveCount: 0,
+  pendingRecordCount: 0,
   departmentName: '未知部门'
 })
 
@@ -337,38 +336,29 @@ const attendanceChart = ref([85, 92, 78, 95, 88, 90, 82, 96, 89, 93, 76, 88, 91,
 const myAttendanceChart = ref([100, 100, 100, 100, 100, 0, 0, 100, 100, 100, 100, 100, 0, 0, 100])
 
 const departmentPendingLeaves = ref([])
+const departmentPendingRecords = ref([])
 const deptPendingLeaves = ref([])
+const deptPendingReplenish = ref([])
 const recentNews = ref([])
 const myLeaveApplications = ref([])
+const myReplenishRecords = ref([])
+
+import { getAdminDashboardStats } from '../api/dashboard'
 
 const loadDashboard = async () => {
   try {
-    const [empRes, deptRes, attRes, leaveRes] = await Promise.all([
-      getEmployeePage({ page: 1, size: 1 }).catch(() => null),
-      getDepartmentPage({ page: 1, size: 100 }).catch(() => null),
-      getAdminRecords({ page: 1, size: 1 }).catch(() => null),
-      getLeavePage({ page: 1, size: 100, status: 'PENDING' }).catch(() => null)
-    ])
-
-    if (empRes && empRes.data) metrics.value.employeeCount = empRes.data.total || 0
-    if (deptRes && deptRes.data) metrics.value.departmentCount = deptRes.data.total || 0
-    if (attRes && attRes.data) metrics.value.publishedContentCount = attRes.data.total || 0
-    
-    const pendingList = leaveRes && leaveRes.data ? (leaveRes.data.records || []) : []
-    metrics.value.pendingLeaveCount = pendingList.length
-
-    if (deptRes && deptRes.data && deptRes.data.records) {
-      departmentPendingLeaves.value = deptRes.data.records.map(dept => {
-        const count = pendingList.filter(l => l.departmentId === dept.id).length
-        return {
-          departmentName: dept.name,
-          count: count,
-          updateTime: count > 0 ? '刚刚' : '正常'
-        }
-      })
+    const res = await getAdminDashboardStats()
+    if (res && res.data) {
+      const data = res.data
+      metrics.value.employeeCount = data.employeeCount || 0
+      metrics.value.departmentCount = data.departmentCount || 0
+      metrics.value.pendingLeaveCount = data.pendingLeaveCount || 0
+      metrics.value.pendingRecordCount = data.pendingRecordCount || 0
+      departmentPendingLeaves.value = data.departmentPendingLeaves || []
+      departmentPendingRecords.value = data.departmentPendingRecords || []
     }
   } catch (err) {
-    console.error('加载仪表盘失败', err)
+    console.error('加载运维统计大包数据失败', err)
   }
 }
 
@@ -443,17 +433,134 @@ const goToContent = (item) => {
   router.push({ path: '/content', query: { type: item.type, title: encodeURIComponent(item.title) } })
 }
 
+const generateCalendar = async () => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth()
+  const firstDay = new Date(year, month, 1)
+  const lastDay = new Date(year, month + 1, 0)
+  const startDay = firstDay.getDay()
+  const totalDays = lastDay.getDate()
+  
+  const days = []
+  
+  const prevMonthLastDay = new Date(year, month, 0).getDate()
+  for (let i = startDay - 1; i >= 0; i--) {
+    days.push({
+      date: prevMonthLastDay - i,
+      hasAttendance: false,
+      otherMonth: true
+    })
+  }
+  
+  const attendanceMap = {}
+  try {
+    const currentYear = new Date().getFullYear()
+    const currentMonth = new Date().getMonth()
+    const startDate = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`
+    const endDate = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${totalDays}`
+    
+    const attRes = await getAdminRecords({ 
+      page: 1, 
+      size: 100,
+      startDate: startDate,
+      endDate: endDate
+    }).catch(() => null)
+    
+    if (attRes && attRes.data && attRes.data.records) {
+      attRes.data.records.forEach(r => {
+        if (r.employeeId !== userId.value) return
+        const date = new Date(r.recordDate || r.createTime)
+        const day = date.getDate()
+        if (!attendanceMap[day]) {
+          attendanceMap[day] = { morningCheckIn: false, morningCheckOut: false, afternoonCheckIn: false, afternoonCheckOut: false }
+        }
+        const isReplenished = r.status === 'REPLENISHED'
+        if (r.sessionName && r.sessionName.includes('上午')) {
+          if (r.checkIn || isReplenished) attendanceMap[day].morningCheckIn = true
+          if (r.checkOut || isReplenished) attendanceMap[day].morningCheckOut = true
+        } else if (r.sessionName && r.sessionName.includes('下午')) {
+          if (r.checkIn || isReplenished) attendanceMap[day].afternoonCheckIn = true
+          if (r.checkOut || isReplenished) attendanceMap[day].afternoonCheckOut = true
+        } else {
+          if (r.checkIn || isReplenished) attendanceMap[day].morningCheckIn = true
+          if (r.checkOut || isReplenished) attendanceMap[day].morningCheckOut = true
+        }
+      })
+    }
+  } catch (err) {
+    console.error('加载考勤记录失败', err)
+  }
+  
+  const today = new Date().getDate()
+  for (let i = 1; i <= totalDays; i++) {
+    const dayData = attendanceMap[i]
+    let status = 'pending'
+    if (i < today) {
+      status = dayData && dayData.morningCheckIn && dayData.morningCheckOut && dayData.afternoonCheckIn && dayData.afternoonCheckOut ? 'completed' : 'failed'
+    } else if (i === today) {
+      status = dayData && dayData.morningCheckIn && dayData.morningCheckOut && dayData.afternoonCheckIn && dayData.afternoonCheckOut ? 'completed' : 'pending'
+    }
+    days.push({
+      date: i,
+      status: status,
+      otherMonth: false
+    })
+  }
+  
+  const remainingCells = 42 - days.length
+  for (let i = 1; i <= remainingCells; i++) {
+    days.push({
+      date: i,
+      hasAttendance: false,
+      otherMonth: true
+    })
+  }
+  
+  calendarDays.value = days
+}
+
 const loadMyLeaveApplications = async () => {
   try {
-    const res = await getLeavePage({ page: 1, size: 5 })
-    if (res && res.data && res.data.records) {
-      myLeaveApplications.value = res.data.records.map(leave => ({
+    const deptId = userDepartmentId.value
+    
+    const [leaveRes, recordRes] = await Promise.all([
+      getLeavePage({ page: 1, size: 100, department: deptId }).catch(() => null),
+      getReplenishRecords({ page: 1, size: 100, departmentId: deptId }).catch(() => null)
+    ])
+    
+    if (leaveRes && leaveRes.data && leaveRes.data.records) {
+      const pendingLeaves = leaveRes.data.records.filter(l => l.status === 'PENDING')
+      myLeaveApplications.value = pendingLeaves.slice(0, 5).map(leave => ({
         time: leave.createTime?.substring(0, 10) || '',
         title: leave.type === 'ANNUAL' ? '年假申请' : leave.type === 'SICK' ? '病假申请' : '事假申请',
         desc: leave.reason || '',
         status: leave.status === 'APPROVED' ? 'approved' : leave.status === 'REJECTED' ? 'rejected' : 'pending'
       }))
-      myStats.value.pendingApplyCount = res.data.records.filter(l => l.status === 'PENDING').length
+      myStats.value.pendingLeaveCount = pendingLeaves.length
+    }
+    
+    if (recordRes && recordRes.data) {
+      const records = recordRes.data.records || recordRes.data.list || []
+      const pendingRecords = records.filter(r => r.status === 'PENDING')
+      myStats.value.pendingRecordCount = pendingRecords.length
+      
+      if (isDeptAdmin.value) {
+        deptPendingReplenish.value = pendingRecords.slice(0, 5).map(r => ({
+          time: r.createTime?.substring(0, 10) || '',
+          employeeName: r.employeeName || '',
+          sessionName: r.sessionName || '',
+          reason: r.reason || ''
+        }))
+      } else {
+        const empRecords = records.filter(r => r.employeeId === userId.value || r.employeeId === Number(userId.value))
+        myReplenishRecords.value = empRecords.slice(0, 5).map(r => ({
+          time: r.createTime?.substring(0, 10) || '',
+          sessionName: r.sessionName || '',
+          reason: r.reason || '',
+          status: r.status === 'APPROVED' ? 'approved' : r.status === 'REJECTED' ? 'rejected' : 'pending'
+        }))
+      }
     }
     
     const myDeptRes = await getMyDepartment().catch(() => null)
@@ -626,6 +733,7 @@ onMounted(() => {
 .dept-card .stat-icon { background: linear-gradient(135deg, #cffafe 0%, #dbeafe 100%); color: #06b6d4; }
 .attendance-card .stat-icon { background: linear-gradient(135deg, #dcfce7 0%, #d1fae5 100%); color: #22c55e; }
 .leave-card .stat-icon { background: linear-gradient(135deg, #fef3c7 0%, #fee2e2 100%); color: #f59e0b; }
+.pending-record-card .stat-icon { background: linear-gradient(135deg, #fef3c7 0%, #fee2e2 100%); color: #f59e0b; }
 .content-card .stat-icon { background: linear-gradient(135deg, #ede9fe 0%, #fce7f3 100%); color: #8b5cf6; }
 .my-attendance-card .stat-icon { background: linear-gradient(135deg, #dcfce7 0%, #d1fae5 100%); color: #22c55e; }
 .my-leave-card .stat-icon { background: linear-gradient(135deg, #e0e7ff 0%, #ede9fe 100%); color: #6366f1; }
@@ -881,6 +989,10 @@ onMounted(() => {
   z-index: 1;
 }
 
+.bottom-panel.single-card {
+  grid-template-columns: 1fr;
+}
+
 .chart-card {
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(24px);
@@ -1125,5 +1237,108 @@ onMounted(() => {
   .stat-card { padding: 20px 16px; gap: 16px; }
   .stat-value { font-size: 28px; }
   .stat-icon { width: 52px; height: 52px; font-size: 22px; }
+}
+
+.admin-stats {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.activity-list-scroll,
+.news-list-scroll,
+.leave-app-list-scroll {
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.activity-list-scroll::-webkit-scrollbar,
+.news-list-scroll::-webkit-scrollbar,
+.leave-app-list-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.activity-list-scroll::-webkit-scrollbar-track,
+.news-list-scroll::-webkit-scrollbar-track,
+.leave-app-list-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.activity-list-scroll::-webkit-scrollbar-thumb,
+.news-list-scroll::-webkit-scrollbar-thumb,
+.leave-app-list-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.activity-list-scroll::-webkit-scrollbar-thumb:hover,
+.news-list-scroll::-webkit-scrollbar-thumb:hover,
+.leave-app-list-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.attendance-calendar {
+  margin-top: 20px;
+}
+
+.calendar-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.calendar-weekday {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  padding: 8px 0;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calendar-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #f8fafc;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.calendar-day:hover {
+  background: #e2e8f0;
+}
+
+.calendar-day.completed {
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.calendar-day.failed {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.calendar-day.pending {
+  background: #f8fafc;
+}
+
+.calendar-day.other-month {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.day-number {
+  font-size: 14px;
 }
 </style>

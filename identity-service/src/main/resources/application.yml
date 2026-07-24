@@ -50,8 +50,11 @@ mybatis:
     map-underscore-to-camel-case: true
   mapper-locations: classpath:mapper/**/*.xml
 
-
-
+oss:
+  endpoint: ${OSS_ENDPOINT:oss-cn-beijing.aliyuncs.com}
+  access-key-id: ${OSS_ACCESS_KEY_ID:your_oss_access_key_id}
+  access-key-secret: ${OSS_ACCESS_KEY_SECRET:your_oss_access_key_secret}
+  bucket-name: ${OSS_BUCKET_NAME:oa-service720}
 
 oa:
   bootstrap:

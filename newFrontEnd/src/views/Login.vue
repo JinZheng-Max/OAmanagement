@@ -149,6 +149,7 @@ const onSubmit = async () => {
           const empRes = await getEmployeeById(user.employeeId)
           if (empRes && empRes.code === 200 && empRes.data) {
             localStorage.setItem('departmentId', empRes.data.departmentId || '')
+            localStorage.setItem('departmentName', empRes.data.departmentName || '')
           }
         } catch (ignored) {}
       }

@@ -43,6 +43,8 @@ public class OssService {
             if (file.getContentType() != null) {
                 metadata.setContentType(file.getContentType());
             }
+            // 显式设置上传文件的 Object ACL 为公共读 (PublicRead)，确保生成的图片 URL 在浏览器中可公开预览
+            metadata.setObjectAcl(com.aliyun.oss.model.CannedAccessControlList.PublicRead);
 
             ossClient.putObject(bucketName, key, is, metadata);
             String url = "https://" + bucketName + "." + endpoint + "/" + key;

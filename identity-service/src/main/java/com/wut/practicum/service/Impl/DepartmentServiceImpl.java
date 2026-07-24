@@ -170,6 +170,30 @@ public class DepartmentServiceImpl implements DepartmentService {
     }
 
     @Override
+    @Transactional
+    public void delete(Long id) {
+        SysDepartment dept = departmentMapper.selectById(id);
+        if (dept == null) {
+            throw new BusinessException(3001, HttpStatus.NOT_FOUND, "部门不存在");
+        }
+
+        // 核心安全防护：校验部门下是否依然存在关联的员工
+        List<OaEmployee> employees = employeeMapper.selectByDepartmentId(id);
+        if (employees != null && !employees.isEmpty()) {
+            throw new BusinessException(3003, HttpStatus.BAD_REQUEST, "删除失败：该部门下仍有 " + employees.size() + " 名关联员工，请先转移或移除部门员工后再删除！");
+        }
+
+        Long oldLeaderId = dept.getLeaderId();
+        departmentMapper.deleteById(id);
+
+        if (oldLeaderId != null) {
+            checkAndResetOldLeaderRole(oldLeaderId);
+        }
+
+        log.info("成功删除部门: id={}, name={}", id, dept.getName());
+    }
+
+    @Override
     public List<DepartmentResponse> listAllActive() {
         return departmentMapper.selectAllActive().stream()
                 .map(DepartmentResponse::from).collect(Collectors.toList());

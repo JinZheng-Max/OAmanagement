@@ -1,751 +1,1012 @@
 <template>
   <div class="leave-container">
-    <!-- 页眉与快捷提交按钮 (全角色均可发起请假申请) -->
     <div class="page-header">
-      <div class="header-top">
+      <div class="header-left">
+        <div class="header-icon">
+          <el-icon><Ticket /></el-icon>
+        </div>
         <div>
-          <h2 class="page-title">📋 {{ isAdmin ? '全公司请假审批管理 (最高管理员终审)' : (isDeptAdmin ? '部门请假与审批管理 (一级/二级审核)' : '我的请假申请中心') }}</h2>
-          <p class="page-subtitle">{{ isAdmin ? '查看全公司请假档案、审批部门经理请假及处理下级呈报的请假申请' : (isDeptAdmin ? '审批本部门员工请假、上放请假至高管或提交个人请假申请' : '在线填报请假单、上传凭证附件并跟踪多级审批进度') }}</p>
+          <h1 class="page-title">{{ isAdmin ? '全员请假审批' : (isDeptAdmin ? '部门请假与审批管理' : '📝 我的请假申请') }}</h1>
+          <p class="page-subtitle">{{ isAdmin ? '管理全公司员工请假申请，高效处理审批流程' : (isDeptAdmin ? '审批本部门员工请假申请' : '查看和管理我的请假申请') }}</p>
         </div>
-        <div style="display: flex; gap: 12px;">
-          <el-button type="primary" size="large" @click="dialogVisible = true">
-            <el-icon><Plus /></el-icon>
-            提交请假单
-          </el-button>
-        </div>
+      </div>
+      <div class="header-actions" v-if="!isAdmin">
+        <el-button type="primary" size="large" @click="dialogVisible = true">
+          <el-icon><Plus /></el-icon>
+          提交请假单
+        </el-button>
       </div>
     </div>
 
-    <!-- 部门经理 Tab 视图切换：部门审批 vs 个人申请 -->
-    <div class="view-tab-switcher" v-if="isDeptAdmin">
-      <button 
-        class="tab-btn" 
-        :class="{ active: activeDeptTab === 'APPROVAL' }" 
-        @click="activeDeptTab = 'APPROVAL'"
-      >
-        <span class="tab-icon">📋</span>
-        <span>本部门员工请假审批</span>
-        <span class="badge" v-if="pendingAuditCount > 0">{{ pendingAuditCount }}</span>
+    <div v-if="isDeptAdmin" class="tab-switcher">
+      <button class="tab-btn" :class="{ active: activeDeptTab === 'DEPT_LEAVES' }" @click="activeDeptTab = 'DEPT_LEAVES'; loadLeaves()">
+        <el-icon><CircleCheck /></el-icon>
+        <span>部门审批</span>
       </button>
-      <button 
-        class="tab-btn" 
-        :class="{ active: activeDeptTab === 'MY_LEAVES' }" 
-        @click="activeDeptTab = 'MY_LEAVES'"
-      >
-        <span class="tab-icon">👤</span>
-        <span>我的个人请假记录</span>
+      <button class="tab-btn" :class="{ active: activeDeptTab === 'MY_LEAVES' }" @click="activeDeptTab = 'MY_LEAVES'; loadLeaves()">
+        <el-icon><User /></el-icon>
+        <span>我的审批</span>
       </button>
     </div>
 
-    <!-- 检索与状态筛选工具栏 -->
     <div class="filter-card">
       <div class="filter-row">
         <div class="filter-group">
-          <span class="filter-label">状态筛选：</span>
-          <el-radio-group v-model="statusFilter" size="default">
-            <el-radio-button label="ALL">全部状态</el-radio-button>
-            <el-radio-button label="PENDING">待审批</el-radio-button>
-            <el-radio-button label="APPROVED">已通过</el-radio-button>
-            <el-radio-button label="REJECTED">已驳回</el-radio-button>
-            <el-radio-button label="WITHDRAWN">已撤回</el-radio-button>
-          </el-radio-group>
+          <span class="filter-label">状态筛选</span>
+          <div class="filter-chips">
+            <span 
+              class="filter-chip" 
+              :class="{ active: statusFilter === 'ALL' }"
+              @click="statusFilter = 'ALL'; loadLeaves()"
+            >全部</span>
+            <span 
+              class="filter-chip pending" 
+              :class="{ active: statusFilter === 'PENDING' }"
+              @click="statusFilter = 'PENDING'; loadLeaves()"
+            >待审批</span>
+            <span 
+              class="filter-chip approved" 
+              :class="{ active: statusFilter === 'APPROVED' }"
+              @click="statusFilter = 'APPROVED'; loadLeaves()"
+            >已通过</span>
+            <span 
+              class="filter-chip rejected" 
+              :class="{ active: statusFilter === 'REJECTED' }"
+              @click="statusFilter = 'REJECTED'; loadLeaves()"
+            >已驳回</span>
+            <span 
+              class="filter-chip withdrawn" 
+              :class="{ active: statusFilter === 'WITHDRAWN' }"
+              @click="statusFilter = 'WITHDRAWN'; loadLeaves()"
+            >已撤回</span>
+          </div>
         </div>
-
         <div class="filter-group">
-          <span class="filter-label">请假类型：</span>
-          <el-select v-model="typeFilter" placeholder="全部类型" clearable style="width: 140px">
-            <el-option label="全部类型" value="ALL" />
-            <el-option label="事假" value="PERSONAL" />
-            <el-option label="病假" value="SICK" />
-            <el-option label="年假" value="ANNUAL" />
-          </el-select>
+          <span class="filter-label">请假类型</span>
+          <div class="filter-chips">
+            <span 
+              class="filter-chip" 
+              :class="{ active: typeFilter === 'ALL' }"
+              @click="typeFilter = 'ALL'; loadLeaves()"
+            >全部类型</span>
+            <span 
+              class="filter-chip personal" 
+              :class="{ active: typeFilter === 'PERSONAL' }"
+              @click="typeFilter = 'PERSONAL'; loadLeaves()"
+            >事假</span>
+            <span 
+              class="filter-chip sick" 
+              :class="{ active: typeFilter === 'SICK' }"
+              @click="typeFilter = 'SICK'; loadLeaves()"
+            >病假</span>
+            <span 
+              class="filter-chip annual" 
+              :class="{ active: typeFilter === 'ANNUAL' }"
+              @click="typeFilter = 'ANNUAL'; loadLeaves()"
+            >年假</span>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- ===== 主表单展板 ===== -->
-    <el-card class="leave-card">
-      <el-table :data="displayLeaves" stripe style="width: 100%" v-loading="loading">
-        <el-table-column v-if="isAdmin || (isDeptAdmin && activeDeptTab === 'APPROVAL')" prop="applicantName" label="申请人" width="160">
-          <template #default="scope">
-            <div style="font-weight: 600; color: #1a1a2e; display: flex; align-items: center; gap: 6px;">
-              <span>{{ scope.row.applicantName || '未知员工' }}</span>
-              <el-tag v-if="isEscalated(scope.row)" type="danger" size="small" effect="dark">📌 呈报高管</el-tag>
-            </div>
-            <div style="font-size: 12px; color: #94a3b8;" v-if="scope.row.applicantNo">{{ scope.row.applicantNo }}</div>
-          </template>
-        </el-table-column>
+    <div class="leave-list">
+      <div 
+        class="leave-card" 
+        v-for="(leave, index) in paginatedLeaves" 
+        :key="leave.id"
+        :style="{ animationDelay: index * 0.05 + 's' }"
+      >
+        <div class="leave-header">
+          <div class="leave-type-tag" :class="getTypeClass(leave.type)">
+            <el-icon><Bell /></el-icon>
+            <span>{{ getTypeName(leave.type) }}</span>
+          </div>
+          <div class="leave-status-tag" :class="getStatusClass(leave.status)">
+            <el-icon><CircleCheck v-if="leave.status === 'APPROVED'" /><Clock v-else-if="leave.status === 'PENDING'" /><CircleClose v-else /></el-icon>
+            <span>{{ getStatusName(leave.status) }}</span>
+          </div>
+        </div>
 
-        <el-table-column prop="typeName" label="请假类型" width="110">
-          <template #default="scope">
-            <el-tag :type="getTypeTag(scope.row.type)" size="small">{{ scope.row.typeName }}</el-tag>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="startTime" label="开始时间" width="165" />
-        <el-table-column prop="endTime" label="结束时间" width="165" />
-
-        <el-table-column prop="reason" label="请假事由" min-width="180" />
-
-        <el-table-column label="凭证附件" width="110">
-          <template #default="scope">
-            <el-button type="primary" link size="small" @click="openAttachments(scope.row.id)">
-              <el-icon><Paperclip /></el-icon>
-              查看附件
-            </el-button>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="statusName" label="审批状态" width="110">
-          <template #default="scope">
-            <el-tag :type="getStatusType(scope.row.status)" size="small">{{ scope.row.statusName }}</el-tag>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="多级审批日志 / 批示意见" min-width="220">
-          <template #default="scope">
-            <div v-if="scope.row.audits && scope.row.audits.length > 0" class="audit-log-box">
-              <div v-for="aud in scope.row.audits" :key="aud.id" class="audit-log-item">
-                <span class="auditor-name">{{ aud.auditorName }}:</span>
-                <span class="auditor-comment" :class="{ 'reject-text': aud.action === 'REJECTED', 'escalate-text': aud.action === 'ESCALATE' }">
-                  {{ aud.comment || (aud.action === 'APPROVED' ? '同意' : '驳回') }}
-                </span>
+        <div class="leave-body">
+          <div class="leave-info">
+            <div class="applicant-info">
+              <div class="applicant-avatar">
+                <el-icon><User /></el-icon>
+              </div>
+              <div class="applicant-detail">
+                <span class="applicant-name">{{ leave.applicantName }}</span>
+                <span class="applicant-no">{{ leave.employeeNo }}</span>
               </div>
             </div>
-            <span v-else style="color: #94a3b8; font-size: 12px;">待处理中</span>
-          </template>
-        </el-table-column>
 
-        <!-- 多级分流操作列 -->
-        <el-table-column label="审批 / 操作" width="240" fixed="right">
-          <template #default="scope">
-            <!-- 1. 超级管理员：终审全公司请假 (包括部门经理申请 + 上放呈报申请 + 普通员工申请) -->
-            <template v-if="isAdmin && isPending(scope.row.status)">
-              <el-button type="success" size="small" @click="approveLeave(scope.row)">
+            <div class="leave-details">
+              <div class="detail-item">
+                <el-icon class="detail-icon"><Clock /></el-icon>
+                <div class="detail-content">
+                  <span class="detail-label">请假时间</span>
+                  <span class="detail-value">{{ formatTime(leave.startTime) }} - {{ formatTime(leave.endTime) }}</span>
+                </div>
+              </div>
+              <div class="detail-item">
+                <el-icon class="detail-icon"><EditPen /></el-icon>
+                <div class="detail-content">
+                  <span class="detail-label">请假事由</span>
+                  <span class="detail-value">{{ leave.reason }}</span>
+                </div>
+              </div>
+              <div class="detail-item" v-if="leave.attachments && leave.attachments.length > 0">
+                <el-icon class="detail-icon"><Paperclip /></el-icon>
+                <div class="detail-content">
+                  <span class="detail-label">证明附件 ({{ leave.attachments.length }})</span>
+                  <div class="attachment-chips-wrapper" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;">
+                    <div 
+                      v-for="att in leave.attachments" 
+                      :key="att.id" 
+                      style="display: flex; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; padding: 4px 10px; border-radius: 6px; font-size: 13px; color: #334155;"
+                    >
+                      <span style="margin-right: 8px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500;">{{ att.fileName }}</span>
+                      <el-button type="success" link size="small" @click="previewFile(att)" style="padding: 0 4px;">
+                        <el-icon><View /></el-icon> 预览
+                      </el-button>
+                      <el-button type="primary" link size="small" @click="downloadFile(att)" style="padding: 0 4px;">
+                        <el-icon><Download /></el-icon> 下载
+                      </el-button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="detail-item" v-if="leave.audits && leave.audits.length > 0">
+                <el-icon class="detail-icon"><Message /></el-icon>
+                <div class="detail-content">
+                  <span class="detail-label">审批日志</span>
+                  <div class="audit-logs">
+                    <div v-for="aud in leave.audits" :key="aud.id" class="audit-item">
+                      <span class="auditor">{{ aud.auditorName }}:</span>
+                      <span :class="aud.action === 'REJECTED' ? 'reject-text' : 'audit-text'">
+                        {{ aud.comment || (aud.action === 'APPROVED' ? '同意' : '驳回') }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="leave-footer">
+          <div class="leave-time">{{ formatFullTime(leave.createTime) }}</div>
+          <div class="leave-actions">
+            <template v-if="isAdmin && isPending(leave.status)">
+              <el-button type="success" size="small" @click="approveLeave(leave)">
                 <el-icon><CircleCheck /></el-icon>
                 同意
               </el-button>
-              <el-button type="danger" size="small" @click="openRejectModal(scope.row)">
+              <el-button type="danger" size="small" @click="openRejectModal(leave)">
                 <el-icon><CircleClose /></el-icon>
                 驳回
               </el-button>
             </template>
-
-            <!-- 2. 部门经理：审核本部门员工请假 + 支持上放呈报高管批示 -->
-            <template v-else-if="isDeptAdmin && activeDeptTab === 'APPROVAL' && isPending(scope.row.status)">
-              <el-button type="success" size="small" @click="approveLeave(scope.row)">
+            <template v-else-if="isDeptAdmin && activeDeptTab === 'APPROVAL' && isPending(leave.status)">
+              <el-button type="success" size="small" @click="approveLeave(leave)">
                 <el-icon><CircleCheck /></el-icon>
                 同意
               </el-button>
-              <el-button type="danger" size="small" @click="openRejectModal(scope.row)">
+              <el-button type="danger" size="small" @click="openRejectModal(leave)">
                 <el-icon><CircleClose /></el-icon>
                 驳回
               </el-button>
-              <el-button type="warning" plain size="small" @click="openEscalateModal(scope.row)">
+              <el-button type="warning" size="small" @click="openEscalateModal(leave)">
                 <el-icon><Promotion /></el-icon>
                 上报高管
               </el-button>
             </template>
-
-            <!-- 3. 个人申请撤回按钮 (待审批状态下可撤回) -->
-            <template v-else-if="(!isDeptAdmin || activeDeptTab === 'MY_LEAVES') && isPending(scope.row.status) && !isAdmin">
-              <el-button type="warning" size="small" @click="withdraw(scope.row.id)">
+            <template v-else-if="(!isDeptAdmin || activeDeptTab === 'MY_LEAVES') && isPending(leave.status) && !isAdmin">
+              <el-button type="warning" size="small" @click="withdraw(leave.id)">
                 <el-icon><RefreshLeft /></el-icon>
-                撤回申请
+                撤回
               </el-button>
             </template>
+            <span v-else class="leave-archived">已归档</span>
+          </div>
+        </div>
+      </div>
+    </div>
 
-            <span v-else style="color: #cbd5e1; font-size: 13px;">流程已归档</span>
-          </template>
-        </el-table-column>
-      </el-table>
+    <div class="pagination-container">
+      <span class="pagination-info">总计 {{ displayLeaves.length }} 条记录</span>
+      <el-pagination
+        v-model:current-page="leaveCurrentPage"
+        v-model:page-size="leavePageSize"
+        :page-sizes="[5, 10]"
+        :total="displayLeaves.length"
+        layout="sizes, prev, pager, next, jumper"
+      />
+    </div>
 
-      <el-empty v-if="displayLeaves.length === 0 && !loading" description="暂无符合条件的请假记录" />
-    </el-card>
-
-    <!-- ===== 新请假单填报 (含 OSS 附件上传) 弹窗 ===== -->
-    <el-dialog v-model="dialogVisible" title="新请假单填报" width="540px" append-to-body align-center :close-on-click-modal="false">
-      <el-form :model="form" label-position="top">
-        <el-form-item label="请假类别" required>
-          <el-select v-model="form.type" placeholder="请选择请假类型" style="width: 100%">
-            <el-option label="🌴 年假" value="ANNUAL" />
-            <el-option label="🤒 病假" value="SICK" />
-            <el-option label="📝 事假" value="PERSONAL" />
+    <el-dialog v-model="dialogVisible" title="提交请假申请" width="520px">
+      <el-form :model="form" label-width="90px">
+        <el-form-item required>
+          <template #label>请假类型 <span style="color:red">*</span></template>
+          <el-select v-model="form.type" style="width: 100%" placeholder="请选择请假类型">
+            <el-option label="事假" value="PERSONAL" />
+            <el-option label="病假" value="SICK" />
+            <el-option label="年假" value="ANNUAL" />
           </el-select>
         </el-form-item>
-
-        <el-form-item label="起止时间" required>
+        <el-form-item required>
+          <template #label>请假时间 <span style="color:red">*</span></template>
           <el-date-picker 
             v-model="timeRange" 
             type="datetimerange" 
-            value-format="YYYY-MM-DD HH:mm:ss" 
+            value-format="YYYY-MM-DD HH:mm:ss"
             range-separator="至" 
             start-placeholder="开始时间" 
-            end-placeholder="结束时间"
-            style="width: 100%" 
+            end-placeholder="结束时间" 
+            style="width: 100%"
           />
         </el-form-item>
-
-        <el-form-item label="事由详情" required>
+        <el-form-item required>
+          <template #label>请假事由 <span style="color:red">*</span></template>
           <el-input v-model="form.reason" type="textarea" :rows="4" placeholder="请详细说明请假原因..." />
         </el-form-item>
-
-        <!-- 附件上传模块 -->
-        <el-form-item label="凭证附件 (支持诊断证明、假条、图片等文档)">
+        <el-form-item label="证明附件">
           <el-upload
+            v-model:file-list="fileList"
             action=""
             :auto-upload="false"
-            :show-file-list="true"
-            :on-change="handleFileChange"
-            :on-remove="handleFileRemove"
-            :file-list="fileList"
-            multiple
-            style="width: 100%"
+            :limit="3"
+            accept=".jpg,.png,.jpeg,.pdf,.doc,.docx,.zip"
           >
-            <el-button type="default">
+            <el-button type="primary" size="small">
               <el-icon><Upload /></el-icon>
-              选择并添加凭证附件
+              上传证明附件
             </el-button>
             <template #tip>
-              <div class="el-upload__tip">
-                可上传医院证明、出差事由图片或关联文档，自动同步存储至阿里云 OSS 存储
-              </div>
+              <div class="el-upload__tip" style="font-size:12px; color:#94a3b8;">支持图片、PDF、Word 等格式的离岗/假条证明文件</div>
             </template>
           </el-upload>
         </el-form-item>
       </el-form>
-
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="submit">确认提交</el-button>
+        <el-button type="primary" :loading="submitting" @click="submit">提交申请</el-button>
       </template>
     </el-dialog>
 
-    <!-- ===== 驳回理由填写 弹窗 ===== -->
-    <el-dialog v-model="rejectModalVisible" title="驳回请假申请" width="480px" append-to-body align-center :close-on-click-modal="false">
-      <el-form label-position="top">
-        <el-form-item label="驳回理由（必填）" required>
-          <el-input 
-            v-model="rejectionReason" 
-            type="textarea" 
-            :rows="4" 
-            placeholder="请详细填写驳回该请假申请的具体理由与说明..." 
-          />
-        </el-form-item>
-      </el-form>
+    <el-dialog v-model="rejectModalVisible" title="驳回申请" width="420px">
+      <el-input v-model="rejectionReason" type="textarea" :rows="4" placeholder="请输入驳回理由，将通知申请人" />
       <template #footer>
         <el-button @click="rejectModalVisible = false">取消</el-button>
-        <el-button type="danger" :loading="auditLoading" @click="confirmReject">确认驳回</el-button>
+        <el-button type="danger" @click="confirmReject">确认驳回</el-button>
       </template>
     </el-dialog>
 
-    <!-- ===== 呈报最高管理员 弹窗 ===== -->
-    <el-dialog v-model="escalateModalVisible" title="呈报最高管理员批示" width="480px" append-to-body align-center :close-on-click-modal="false">
-      <el-form label-position="top">
-        <el-form-item label="呈报说明 (如假程较长/需高管特批)" required>
-          <el-input 
-            v-model="escalationNote" 
-            type="textarea" 
-            :rows="4" 
-            placeholder="请输入上报至最高管理员批示的说明与原因..." 
-          />
-        </el-form-item>
-      </el-form>
+    <el-dialog v-model="escalateModalVisible" title="上报高管" width="420px">
+      <el-input v-model="escalationNote" type="textarea" :rows="4" placeholder="请输入上报说明" />
       <template #footer>
         <el-button @click="escalateModalVisible = false">取消</el-button>
-        <el-button type="warning" :loading="auditLoading" @click="confirmEscalate">确认呈报高管</el-button>
+        <el-button type="primary" @click="confirmEscalate">确认上报</el-button>
       </template>
     </el-dialog>
 
-    <!-- ===== 附件明细与下载弹窗 ===== -->
-    <el-dialog v-model="showAttachmentModal" title="请假凭证附件" width="500px" append-to-body align-center>
-      <div v-loading="loadingAttachments" style="min-height: 100px;">
-        <div v-if="currentAttachments.length > 0" class="attachment-list">
-          <div v-for="att in currentAttachments" :key="att.id" class="attachment-item">
-            <div class="att-info">
-              <el-icon class="att-icon"><Paperclip /></el-icon>
-              <div class="att-detail">
-                <span class="att-name">{{ att.fileName }}</span>
-                <span class="att-size">{{ (att.fileSize / 1024).toFixed(1) }} KB</span>
-              </div>
-            </div>
-            <el-button type="primary" link size="small" @click="downloadFile(att.id)">
-              <el-icon><Download /></el-icon>
-              下载附件
+    <el-dialog v-model="showAttachmentModal" title="证明附件列表" width="480px">
+      <div v-if="currentAttachments.length > 0" class="attachment-list-wrapper">
+        <div v-for="att in currentAttachments" :key="att.id" class="attachment-item">
+          <div class="attachment-info">
+            <el-icon><Document /></el-icon>
+            <span class="attachment-name" :title="att.fileName">{{ att.fileName }}</span>
+          </div>
+          <div class="attachment-actions">
+            <el-button type="success" size="small" @click="previewFile(att)">
+              <el-icon><View /></el-icon> 预览
+            </el-button>
+            <el-button type="primary" size="small" @click="downloadFile(att)">
+              <el-icon><Download /></el-icon> 下载
             </el-button>
           </div>
         </div>
-        <el-empty v-else description="该请假单未上传附件" />
       </div>
+      <el-empty v-else description="暂无证明附件" />
       <template #footer>
         <el-button @click="showAttachmentModal = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- ===== 附件大图在线预览 弹窗 ===== -->
+    <el-dialog v-model="previewVisible" title="证明附件预览" width="700px" append-to-body align-center>
+      <div style="text-align: center; max-height: 550px; overflow: auto; padding: 12px;">
+        <img v-if="isPreviewImage" :src="previewUrl" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" alt="附件预览" />
+      </div>
+      <template #footer>
+        <el-button type="primary" @click="previewVisible = false">关闭预览</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { 
-  Plus, 
-  CircleCheck, 
-  CircleClose, 
-  RefreshLeft, 
-  ArrowLeft, 
-  OfficeBuilding, 
-  Document,
-  Upload,
-  Paperclip,
-  Download,
-  Promotion
+  Ticket, Plus, CircleCheck, Clock, CircleClose, 
+  User, EditPen, Message, Paperclip, RefreshLeft, 
+  Promotion, Document, Bell, Upload, View, Download
 } from '@element-plus/icons-vue'
-import { 
-  getLeavePage, 
-  createLeave, 
-  withdrawLeave, 
-  auditLeave, 
-  uploadAttachment, 
-  getAttachments, 
-  getDownloadUrl 
+import {
+  getLeavePage,
+  createLeave,
+  withdrawLeave,
+  auditLeave,
+  uploadAttachment,
+  getAttachments,
+  getDownloadUrl
 } from '../api/leave'
 
+const isAdmin = ref(false)
+const isDeptAdmin = ref(false)
 const loading = ref(false)
-const submitLoading = ref(false)
-const auditLoading = ref(false)
-const tableData = ref([])
-const dialogVisible = ref(false)
-const timeRange = ref([])
+const submitting = ref(false)
 const fileList = ref([])
-
-const showAttachmentModal = ref(false)
-const currentAttachments = ref([])
-const loadingAttachments = ref(false)
-
-// 驳回与呈报 Modal 逻辑
+const displayLeaves = ref([])
+const dialogVisible = ref(false)
 const rejectModalVisible = ref(false)
-const rejectionReason = ref('')
-const selectedLeaveForAudit = ref(null)
-
 const escalateModalVisible = ref(false)
+const showAttachmentModal = ref(false)
+const previewVisible = ref(false)
+const previewUrl = ref('')
+const isPreviewImage = ref(false)
+const currentLeave = ref(null)
+const currentAttachments = ref([])
+const rejectionReason = ref('')
 const escalationNote = ref('')
-
-const form = reactive({ type: 'ANNUAL', reason: '' })
-const storedRole = ref(localStorage.getItem('role') || 'EMPLOYEE')
-const currentUserId = ref(localStorage.getItem('userId') || null)
-const currentEmployeeId = ref(localStorage.getItem('employeeId') || null)
-
-const isAdmin = computed(() => storedRole.value === 'SUPER_ADMIN' || storedRole.value === 'ADMIN')
-const isDeptAdmin = computed(() => storedRole.value === 'DEPT_MANAGER')
-const activeDeptTab = ref('APPROVAL') // 'APPROVAL' or 'MY_LEAVES'
-
 const statusFilter = ref('ALL')
 const typeFilter = ref('ALL')
+const activeDeptTab = ref('DEPT_LEAVES')
 
-const isPending = (status) => {
-  return status === 'PENDING' || status === 0 || status === '0'
-}
+const leaveCurrentPage = ref(1)
+const leavePageSize = ref(5)
 
-const isEscalated = (leave) => {
-  if (!leave || !leave.audits) return false
-  return leave.audits.some(a => a.action === 'ESCALATE' || (a.comment && a.comment.includes('呈报')))
-}
+const form = ref({ type: '', reason: '' })
+const timeRange = ref([])
 
-const pendingAuditCount = computed(() => {
-  return tableData.value.filter(l => isPending(l.status)).length
+const paginatedLeaves = computed(() => {
+  const start = (leaveCurrentPage.value - 1) * leavePageSize.value
+  const end = start + leavePageSize.value
+  return displayLeaves.value.slice(start, end)
 })
 
-const displayLeaves = computed(() => {
-  let list = tableData.value
+const isPending = (status) => status === 'PENDING'
 
-  if (isDeptAdmin.value) {
-    if (activeDeptTab.value === 'MY_LEAVES') {
-      list = list.filter(l => String(l.applicantId) === String(currentEmployeeId.value))
-    }
-  }
-
-  if (statusFilter.value !== 'ALL') {
-    list = list.filter(l => {
-      if (statusFilter.value === 'PENDING') return isPending(l.status)
-      return l.status === statusFilter.value
-    })
-  }
-
-  if (typeFilter.value !== 'ALL') {
-    list = list.filter(l => l.type === typeFilter.value)
-  }
-
-  return list
-})
-
-const getTypeTag = (type) => {
-  switch (type) {
-    case 'ANNUAL': return 'primary'
-    case 'SICK': return 'warning'
-    case 'PERSONAL': return 'danger'
-    default: return 'info'
-  }
+const getTypeName = (type) => {
+  const map = { PERSONAL: '事假', SICK: '病假', ANNUAL: '年假' }
+  return map[type] || '其他'
 }
 
-const getStatusType = (status) => {
-  switch (status) {
-    case 'APPROVED':
-    case 1: return 'success'
-    case 'REJECTED':
-    case 2: return 'danger'
-    case 'WITHDRAWN': return 'info'
-    default: return 'warning'
-  }
+const getTypeClass = (type) => {
+  const map = { PERSONAL: 'personal', SICK: 'sick', ANNUAL: 'annual' }
+  return map[type] || 'default'
 }
 
-const handleFileChange = (file, list) => {
-  fileList.value = list
+const getStatusName = (status) => {
+  const map = { PENDING: '待审批', APPROVED: '已通过', REJECTED: '已驳回', WITHDRAWN: '已撤回' }
+  return map[status] || '未知'
 }
 
-const handleFileRemove = (file, list) => {
-  fileList.value = list
+const getStatusClass = (status) => {
+  const map = { PENDING: 'pending', APPROVED: 'approved', REJECTED: 'rejected', WITHDRAWN: 'withdrawn' }
+  return map[status] || 'default'
+}
+
+const formatTime = (time) => {
+  if (!time) return '-'
+  return new Date(time).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+const formatFullTime = (time) => {
+  if (!time) return '-'
+  return new Date(time).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
 const loadLeaves = async () => {
   loading.value = true
   try {
-    const res = await getLeavePage({ page: 1, size: 100 })
-    if (res && res.data && (res.data.records || res.data.list)) {
-      const records = res.data.records || res.data.list || []
-      tableData.value = records.map(item => ({
-        ...item,
-        typeName: item.type === 'ANNUAL' ? '年假' : item.type === 'SICK' ? '病假' : item.type === 'PERSONAL' ? '事假' : '其他',
-        statusName: item.status === 'APPROVED' ? '已通过' : item.status === 'REJECTED' ? '已驳回' : item.status === 'WITHDRAWN' ? '已撤回' : '待审批'
-      }))
+    const params = {}
+    if (statusFilter.value !== 'ALL') params.status = statusFilter.value
+    if (typeFilter.value !== 'ALL') params.type = typeFilter.value
+    if (isDeptAdmin.value && activeDeptTab.value === 'MY_LEAVES') {
+      params.mine = true
+    } else if (isDeptAdmin.value && activeDeptTab.value === 'DEPT_LEAVES') {
+      params.department = true
     }
+    const res = await getLeavePage(params)
+    displayLeaves.value = res.data?.records || res.data || []
   } catch (err) {
-    console.error('加载请假记录失败', err)
+    displayLeaves.value = []
   } finally {
     loading.value = false
   }
 }
 
-const openAttachments = async (leaveId) => {
-  showAttachmentModal.value = true
-  loadingAttachments.value = true
-  currentAttachments.value = []
-  try {
-    const res = await getAttachments(leaveId)
-    if (res && res.data) {
-      currentAttachments.value = res.data || []
-    }
-  } catch (err) {
-    ElMessage.error('获取凭证附件失败')
-  } finally {
-    loadingAttachments.value = false
-  }
-}
-
-const downloadFile = (attachId) => {
-  const url = getDownloadUrl(attachId)
-  window.open(url, '_blank')
-}
-
 const submit = async () => {
-  if (!form.type || !timeRange.value || !timeRange.value.length || !form.reason) {
-    return ElMessage.warning('请填写完整的时间起止、请假类型和事由详情')
+  if (!form.value.type || !timeRange.value.length || !form.value.reason) {
+    ElMessage.warning('请填写完整的请假信息')
+    return
   }
-  
-  const payload = {
-    type: form.type,
-    startTime: timeRange.value[0],
-    endTime: timeRange.value[1],
-    reason: form.reason
-  }
-  
-  submitLoading.value = true
+  submitting.value = true
   try {
-    const res = await createLeave(payload)
-    if (res && res.code === 200 && res.data) {
-      const leaveId = res.data.id
+    const res = await createLeave({
+      type: form.value.type,
+      startTime: timeRange.value[0],
+      endTime: timeRange.value[1],
+      reason: form.value.reason
+    })
 
-      if (fileList.value && fileList.value.length > 0) {
-        for (const fileItem of fileList.value) {
-          if (fileItem.raw) {
-            await uploadAttachment(leaveId, fileItem.raw).catch(() => null)
-          }
+    const leaveId = res.data?.id || res.data
+    if (leaveId && fileList.value.length > 0) {
+      for (const f of fileList.value) {
+        if (f.raw) {
+          await uploadAttachment(leaveId, f.raw).catch(() => null)
         }
       }
-
-      ElMessage.success('请假单提交成功！已发送至上级主管进行审批')
-      dialogVisible.value = false
-      timeRange.value = []
-      fileList.value = []
-      form.type = 'ANNUAL'
-      form.reason = ''
-      loadLeaves()
     }
+
+    ElMessage.success('请假申请提交成功！')
+    dialogVisible.value = false
+    form.value = { type: '', reason: '' }
+    timeRange.value = []
+    fileList.value = []
+    await loadLeaves()
   } catch (err) {
     ElMessage.error(err.response?.data?.message || '提交失败')
   } finally {
-    submitLoading.value = false
+    submitting.value = false
   }
 }
 
-const withdraw = async (id) => {
+const approveLeave = async (row) => {
   try {
-    const res = await withdrawLeave(id)
-    if (res && res.code === 200) {
-      ElMessage.success('请假申请已成功撤回')
-      loadLeaves()
-    }
+    await auditLeave(row.id, { action: 'APPROVED' })
+    ElMessage.success('审批通过')
+    await loadLeaves()
   } catch (err) {
-    ElMessage.error(err.response?.data?.message || '撤回失败')
+    ElMessage.error('操作失败')
   }
 }
 
-const approveLeave = async (leave) => {
-  try {
-    const res = await auditLeave(leave.id, { 
-      action: 'APPROVED', 
-      comment: isAdmin.value ? '最高管理员审批通过' : '部门经理审核同意'
-    })
-    if (res && res.code === 200) {
-      ElMessage.success('已审批同意该请假申请！')
-      loadLeaves()
-    }
-  } catch (err) {
-    ElMessage.error(err.response?.data?.message || '审批处理失败')
-  }
-}
-
-const openRejectModal = (leave) => {
-  selectedLeaveForAudit.value = leave
+const openRejectModal = (row) => {
+  currentLeave.value = row
   rejectionReason.value = ''
   rejectModalVisible.value = true
 }
 
 const confirmReject = async () => {
-  if (!rejectionReason.value || !rejectionReason.value.trim()) {
-    return ElMessage.warning('驳回请假申请必须填写具体的驳回理由！')
+  if (!rejectionReason.value.trim()) {
+    ElMessage.warning('请填写驳回理由')
+    return
   }
-  auditLoading.value = true
   try {
-    const res = await auditLeave(selectedLeaveForAudit.value.id, {
-      action: 'REJECTED',
-      comment: rejectionReason.value.trim()
-    })
-    if (res && res.code === 200) {
-      ElMessage.success('已驳回该请假申请！')
-      rejectModalVisible.value = false
-      loadLeaves()
-    }
+    await auditLeave(currentLeave.value.id, { action: 'REJECTED', comment: rejectionReason.value })
+    ElMessage.success('已驳回')
+    rejectModalVisible.value = false
+    await loadLeaves()
   } catch (err) {
-    ElMessage.error(err.response?.data?.message || '驳回处理失败')
-  } finally {
-    auditLoading.value = false
+    ElMessage.error('操作失败')
   }
 }
 
-const openEscalateModal = (leave) => {
-  selectedLeaveForAudit.value = leave
-  escalationNote.value = '假程较长/特殊事由，呈报最高管理员批示'
+const openEscalateModal = (row) => {
+  currentLeave.value = row
+  escalationNote.value = ''
   escalateModalVisible.value = true
 }
 
 const confirmEscalate = async () => {
-  if (!escalationNote.value || !escalationNote.value.trim()) {
-    return ElMessage.warning('请填写呈报最高管理员的具体说明！')
-  }
-  auditLoading.value = true
   try {
-    const res = await auditLeave(selectedLeaveForAudit.value.id, {
-      action: 'ESCALATE',
-      comment: `【呈报最高管理员批示】${escalationNote.value.trim()}`
-    })
-    if (res && res.code === 200) {
-      ElMessage.success('已将该申请成功呈报至最高管理员！')
-      escalateModalVisible.value = false
-      loadLeaves()
-    }
+    await auditLeave(currentLeave.value.id, { action: 'ESCALATE', comment: escalationNote.value })
+    ElMessage.success('已呈报高管')
+    escalateModalVisible.value = false
+    await loadLeaves()
   } catch (err) {
-    ElMessage.error(err.response?.data?.message || '呈报处理失败')
-  } finally {
-    auditLoading.value = false
+    ElMessage.error('操作失败')
   }
 }
 
-onMounted(() => {
-  if (!localStorage.getItem('token')) return
-  loadLeaves()
+const withdraw = async (id) => {
+  try {
+    await withdrawLeave(id)
+    ElMessage.success('已撤回')
+    await loadLeaves()
+  } catch (err) {
+    ElMessage.error('操作失败')
+  }
+}
+
+const openAttachments = async (id) => {
+  currentAttachments.value = []
+  showAttachmentModal.value = true
+  try {
+    const res = await getAttachments(id)
+    currentAttachments.value = res.data || []
+  } catch (err) {
+    ElMessage.error('获取附件失败')
+  }
+}
+
+const previewFile = (att) => {
+  const url = getDownloadUrl(att.id)
+  const name = (att.fileName || '').toLowerCase()
+  if (name.endsWith('.png') || name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.gif') || name.endsWith('.webp') || name.endsWith('.svg')) {
+    previewUrl.value = url
+    isPreviewImage.value = true
+    previewVisible.value = true
+  } else {
+    window.open(url, '_blank')
+  }
+}
+
+const downloadFile = (att) => {
+  const id = typeof att === 'object' ? att.id : att
+  const url = getDownloadUrl(id)
+  const a = document.createElement('a')
+  a.href = url
+  if (typeof att === 'object' && att.fileName) {
+    a.download = att.fileName
+  }
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
+onMounted(async () => {
+  const role = localStorage.getItem('role') || ''
+  isAdmin.value = role === 'ADMIN' || role === 'SUPER_ADMIN'
+  isDeptAdmin.value = role === 'DEPARTMENT_ADMIN' || role === 'DEPT_MANAGER'
+  await loadLeaves()
 })
 </script>
 
 <style scoped>
 .leave-container {
-  max-width: 1400px;
+  padding: 24px;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
 }
 
 .page-header {
-  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding: 28px 32px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 20px;
+  box-shadow: 0 12px 40px rgba(102, 126, 234, 0.3);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.header-icon {
+  width: 56px;
+  height: 56px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: #ffffff;
 }
 
 .page-title {
   font-size: 26px;
-  font-weight: bold;
-  color: #1a1a2e;
+  font-weight: 700;
+  color: #ffffff;
   margin: 0;
 }
 
 .page-subtitle {
   font-size: 14px;
-  color: #888;
-  margin: 6px 0 0 0;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 4px 0 0 0;
 }
 
-.view-tab-switcher {
+.header-actions {
   display: flex;
   gap: 12px;
+}
+
+.header-actions .el-button {
+  background: rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  border-radius: 12px;
+  padding: 10px 24px;
+  font-weight: 500;
+}
+
+.header-actions .el-button:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.tab-switcher {
+  display: flex;
+  gap: 8px;
   margin-bottom: 20px;
+  padding: 8px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  width: fit-content;
 }
 
 .tab-btn {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 24px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px);
-  font-size: 15px;
-  font-weight: 600;
+  padding: 12px 28px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
   color: #64748b;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
-}
-
-.tab-btn:hover {
-  background: rgba(255, 255, 255, 0.95);
-  color: #1a1a2e;
 }
 
 .tab-btn.active {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: #ffffff;
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.35);
-}
-
-.badge {
-  background: #ef4444;
-  color: #fff;
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 10px;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
 
 .filter-card {
-  margin-bottom: 20px;
-  padding: 16px 20px;
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(16px);
+  background: #ffffff;
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
 }
 
 .filter-row {
   display: flex;
+  gap: 32px;
   flex-wrap: wrap;
-  gap: 24px;
-  align-items: center;
 }
 
 .filter-group {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .filter-label {
   font-size: 13px;
   font-weight: 600;
+  color: #475569;
+}
+
+.filter-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  padding: 8px 16px;
+  border-radius: 20px;
+  background: #f1f5f9;
   color: #64748b;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid transparent;
+}
+
+.filter-chip:hover {
+  background: #e2e8f0;
+}
+
+.filter-chip.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.filter-chip.pending.active {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.filter-chip.approved.active {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+}
+
+.filter-chip.rejected.active {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+
+.filter-chip.withdrawn.active {
+  background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+}
+
+.filter-chip.personal.active {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.filter-chip.sick.active {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+
+.filter-chip.annual.active {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
+.leave-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .leave-card {
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(16px);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(226, 232, 240, 0.6);
+  animation: cardSlideIn 0.4s ease forwards;
+  opacity: 0;
+  transform: translateY(10px);
 }
 
-.audit-log-box {
+@keyframes cardSlideIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.leave-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.leave-type-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.leave-type-tag.personal {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+}
+
+.leave-type-tag.sick {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.leave-type-tag.annual {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.leave-status-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.leave-status-tag.pending {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+}
+
+.leave-status-tag.approved {
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+}
+
+.leave-status-tag.rejected {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.leave-status-tag.withdrawn {
+  background: rgba(100, 116, 139, 0.1);
+  color: #64748b;
+}
+
+.leave-body {
+  margin-bottom: 20px;
+}
+
+.leave-info {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.applicant-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.applicant-avatar {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: #ffffff;
+}
+
+.applicant-detail {
+  display: flex;
+  flex-direction: column;
+}
+
+.applicant-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.applicant-no {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.leave-details {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-left: 62px;
+}
+
+.detail-item {
+  display: flex;
+  gap: 12px;
+}
+
+.detail-icon {
+  width: 32px;
+  height: 32px;
+  background: #f8fafc;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #667eea;
+  flex-shrink: 0;
+}
+
+.detail-content {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.audit-log-item {
+.detail-label {
   font-size: 12px;
-  line-height: 1.4;
+  color: #94a3b8;
 }
 
-.auditor-name {
+.detail-value {
+  font-size: 14px;
+  color: #334155;
+  font-weight: 500;
+}
+
+.audit-logs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.audit-item {
+  font-size: 13px;
+}
+
+.auditor {
   font-weight: 600;
-  color: #475569;
-  margin-right: 4px;
+  color: #64748b;
 }
 
-.auditor-comment {
+.audit-text {
   color: #334155;
 }
 
 .reject-text {
   color: #ef4444;
-  font-weight: 600;
 }
 
-.escalate-text {
-  color: #d97706;
-  font-weight: 600;
+.leave-attachments {
+  margin-left: 62px;
 }
 
-.attachment-list {
+.leave-attachments .el-button {
+  color: #667eea;
+  font-size: 13px;
+}
+
+.leave-footer {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 16px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.leave-time {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.leave-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.leave-archived {
+  font-size: 13px;
+  color: #94a3b8;
+  padding: 6px 12px;
+  background: #f1f5f9;
+  border-radius: 8px;
+}
+
+.pagination-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 24px;
+  padding: 16px 24px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+.pagination-info {
+  font-size: 14px;
+  color: #64748b;
 }
 
 .attachment-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  background: #f8fafc;
-  border-radius: 10px;
-  border: 1px solid #e2e8f0;
+  padding: 12px 0;
+  border-bottom: 1px solid #f1f5f9;
 }
 
-.att-info {
+.attachment-info {
   display: flex;
   align-items: center;
   gap: 10px;
-}
-
-.att-icon {
-  font-size: 18px;
-  color: #667eea;
-}
-
-.att-detail {
-  display: flex;
-  flex-direction: column;
-}
-
-.att-name {
   font-size: 14px;
-  font-weight: 600;
-  color: #1e293b;
-}
-
-.att-size {
-  font-size: 12px;
-  color: #94a3b8;
+  color: #334155;
 }
 </style>

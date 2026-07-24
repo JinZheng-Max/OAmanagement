@@ -44,6 +44,12 @@ export async function updateDepartmentStatus(id, status) {
   return res.data
 }
 
+/** 删除部门 */
+export async function deleteDepartment(id) {
+  const res = await http.delete(`/departments/${id}`)
+  return res.data
+}
+
 // ======================== 员工接口 ========================
 
 /** 分页查询员工列表 */

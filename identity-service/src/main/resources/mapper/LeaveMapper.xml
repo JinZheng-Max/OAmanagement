@@ -13,6 +13,7 @@
         <result property="status" column="status"/>
         <result property="applicantName" column="applicant_name"/>
         <result property="applicantNo" column="applicant_no"/>
+        <result property="departmentId" column="department_id"/>
         <result property="createTime" column="create_time"/>
         <result property="updateTime" column="update_time"/>
     </resultMap>
@@ -29,7 +30,7 @@
     </resultMap>
 
     <sql id="selectLeaveWithEmployee">
-        SELECT l.*, e.name AS applicant_name, e.employee_no AS applicant_no
+        SELECT l.*, e.name AS applicant_name, e.employee_no AS applicant_no, e.department_id AS department_id
         FROM oa_leave l
         LEFT JOIN oa_employee e ON l.applicant_id = e.id
     </sql>
@@ -97,6 +98,31 @@
 
     <select id="selectAttachmentById" resultType="com.wut.practicum.entity.OaLeaveAttachment">
         SELECT * FROM oa_leave_attachment WHERE id = #{id}
+    </select>
+
+    <!-- 运维大屏分组统计 SQL -->
+    <select id="selectDeptPendingLeaveCounts" resultType="map">
+        SELECT e.department_id AS deptId, COUNT(*) AS count
+        FROM oa_leave l
+        JOIN oa_employee e ON l.applicant_id = e.id
+        WHERE l.status = 'PENDING' AND e.department_id IS NOT NULL
+        GROUP BY e.department_id
+    </select>
+
+    <select id="selectDeptPendingReplenishCounts" resultType="map">
+        SELECT COALESCE(a.department_id, e.department_id) AS deptId, COUNT(*) AS count
+        FROM oa_attendance a
+        JOIN oa_employee e ON a.employee_id = e.id
+        WHERE a.replenish_status = 'PENDING' AND COALESCE(a.department_id, e.department_id) IS NOT NULL
+        GROUP BY COALESCE(a.department_id, e.department_id)
+    </select>
+
+    <select id="countPendingLeaves" resultType="long">
+        SELECT COUNT(*) FROM oa_leave WHERE status = 'PENDING'
+    </select>
+
+    <select id="countPendingReplenishes" resultType="long">
+        SELECT COUNT(*) FROM oa_attendance WHERE replenish_status = 'PENDING'
     </select>
 
 </mapper>

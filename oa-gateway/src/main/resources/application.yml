@@ -37,7 +37,7 @@ spring:
                   - id: identity-service
                     uri: http://localhost:8851
                     predicates:
-                      - Path=/api/auth/**,/api/identity/**,/api/employees/**,/api/departments/**,/api/leaves/**
+                      - Path=/api/auth/**,/api/identity/**,/api/employees/**,/api/departments/**,/api/leaves/**,/api/dashboard/**
                   - id: oa-attendance-service
                     uri: http://localhost:8849
                     predicates:

@@ -750,6 +750,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 attendance.getId(),
                 attendance.getEmployeeId(),
                 attendance.getEmployeeName(),
+                attendance.getDepartmentId(),
                 attendance.getDepartmentName(),
                 attendance.getWorkDate(),
                 sName,

@@ -1,8 +1,10 @@
 <template>
   <aside class="sidebar">
+    <div class="sidebar-bg"></div>
+    <div class="sidebar-glow"></div>
     <div class="sidebar-header">
       <div class="brand">
-        <div class="brand-icon">
+        <div class="brand-icon animate-float">
           <el-icon><OfficeBuilding /></el-icon>
         </div>
         <div class="brand-text">
@@ -17,37 +19,37 @@
           <span class="section-label">业务中心</span>
           <el-menu-item index="/dashboard" class="menu-item">
             <div class="menu-icon-wrap">
-              <el-icon><Odometer /></el-icon>
+              <el-icon class="menu-icon-spin"><Odometer /></el-icon>
             </div>
             <span>{{ isAdmin ? '数据统计大屏' : '我的工作台' }}</span>
           </el-menu-item>
           <el-menu-item index="/ai-assistant" class="menu-item">
             <div class="menu-icon-wrap">
-              <el-icon><ChatDotRound /></el-icon>
+              <el-icon class="menu-icon-bounce"><ChatDotRound /></el-icon>
             </div>
             <span>AI 智能问答</span>
           </el-menu-item>
           <el-menu-item index="/attendance" class="menu-item">
             <div class="menu-icon-wrap">
-              <el-icon><Checked /></el-icon>
+              <el-icon class="menu-icon-pulse"><Checked /></el-icon>
             </div>
             <span>{{ isAdmin ? '全员考勤看板' : (isDeptAdmin ? '部门考勤管理' : '考勤签到') }}</span>
           </el-menu-item>
           <el-menu-item index="/leave" class="menu-item">
             <div class="menu-icon-wrap">
-              <el-icon><Calendar /></el-icon>
+              <el-icon class="menu-icon-wiggle"><Calendar /></el-icon>
             </div>
             <span>{{ isAdmin ? '全员请假审批' : (isDeptAdmin ? '部门请假审批' : '请假申请') }}</span>
           </el-menu-item>
           <el-menu-item index="/content" class="menu-item">
             <div class="menu-icon-wrap">
-              <el-icon><Document /></el-icon>
+              <el-icon class="menu-icon-float"><Document /></el-icon>
             </div>
             <span>公告制度中心</span>
           </el-menu-item>
           <el-menu-item index="/org" class="menu-item">
             <div class="menu-icon-wrap">
-              <el-icon><Briefcase /></el-icon>
+              <el-icon class="menu-icon-rotate"><Briefcase /></el-icon>
             </div>
             <span>{{ isAdmin ? '组织与员工管理' : '部门成员档案' }}</span>
           </el-menu-item>
@@ -106,7 +108,9 @@ const roleText = computed(() => {
   box-shadow: 6px 0 40px rgba(0, 0, 0, 0.4);
   z-index: 100;
   overflow: hidden;
-  background: #1a1a2e;
+  background: rgba(26, 26, 46, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 .sidebar-bg {
@@ -123,6 +127,28 @@ const roleText = computed(() => {
   z-index: 0;
 }
 
+.sidebar-glow {
+  position: absolute;
+  top: -100px;
+  right: -50px;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(102, 126, 234, 0.1) 0%, transparent 70%);
+  animation: glowPulse 4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes glowPulse {
+  0%, 100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
 
 .sidebar-header {
   padding: 28px 24px;
@@ -377,4 +403,58 @@ const roleText = computed(() => {
   background: rgba(255, 255, 255, 0.2);
 }
 
+.menu-icon-spin {
+  animation: menu-spin 8s linear infinite;
+}
+
+.menu-icon-bounce {
+  animation: menu-bounce 2s ease-in-out infinite;
+}
+
+.menu-icon-pulse {
+  animation: menu-pulse 2s ease-in-out infinite;
+}
+
+.menu-icon-wiggle {
+  animation: menu-wiggle 1.5s ease-in-out infinite;
+}
+
+.menu-icon-float {
+  animation: menu-float 3s ease-in-out infinite;
+}
+
+.menu-icon-rotate {
+  animation: menu-rotate 6s ease-in-out infinite;
+}
+
+@keyframes menu-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes menu-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes menu-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 1; }
+}
+
+@keyframes menu-wiggle {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+
+@keyframes menu-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-2px) rotate(1deg); }
+  75% { transform: translateY(2px) rotate(-1deg); }
+}
+
+@keyframes menu-rotate {
+  0%, 100% { transform: perspective(500px) rotateY(0deg); }
+  50% { transform: perspective(500px) rotateY(180deg); }
+}
 </style>

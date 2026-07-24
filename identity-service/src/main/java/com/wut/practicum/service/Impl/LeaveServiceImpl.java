@@ -59,7 +59,7 @@ public class LeaveServiceImpl implements LeaveService {
         long total = leaveMapper.countPage(applicantId, status, type, deptId);
         if (total == 0) return PageResult.of(List.of(), 0, query);
         List<LeaveResponse> list = leaveMapper.selectPage(applicantId, status, type, query.offset(), query.size(), deptId).stream()
-                .map(l -> LeaveResponse.from(l, leaveMapper.selectAuditsByLeaveId(l.getId())))
+                .map(l -> LeaveResponse.from(l, leaveMapper.selectAuditsByLeaveId(l.getId()), leaveMapper.selectAttachmentsByLeaveId(l.getId())))
                 .collect(Collectors.toList());
         return PageResult.of(list, total, query);
     }
@@ -68,7 +68,7 @@ public class LeaveServiceImpl implements LeaveService {
     public LeaveResponse getById(Long id) {
         OaLeave leave = leaveMapper.selectById(id);
         if (leave == null) throw new BusinessException(5001, HttpStatus.NOT_FOUND, "请假申请不存在");
-        return LeaveResponse.from(leave, leaveMapper.selectAuditsByLeaveId(id));
+        return LeaveResponse.from(leave, leaveMapper.selectAuditsByLeaveId(id), leaveMapper.selectAttachmentsByLeaveId(id));
     }
 
     @Override
@@ -77,13 +77,32 @@ public class LeaveServiceImpl implements LeaveService {
         OaLeave leave = new OaLeave();
         leave.setApplicantId(applicantId);
         leave.setType(request.type());
-        leave.setStartTime(LocalDateTime.parse(request.startTime(), DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
-        leave.setEndTime(LocalDateTime.parse(request.endTime(), DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        leave.setStartTime(parseDateTime(request.startTime()));
+        leave.setEndTime(parseDateTime(request.endTime()));
         leave.setReason(request.reason());
         leave.setStatus("PENDING");
         leaveMapper.insert(leave);
         log.info("请假申请提交: id={}, applicantId={}, type={}", leave.getId(), applicantId, request.type());
         return LeaveResponse.from(leave, List.of());
+    }
+
+    private LocalDateTime parseDateTime(String text) {
+        if (text == null || text.isBlank()) return null;
+        try {
+            if (text.contains("Z") || text.contains("T")) {
+                return java.time.OffsetDateTime.parse(text).toLocalDateTime();
+            }
+            if (text.contains(" ")) {
+                String pattern = text.length() == 16 ? "yyyy-MM-dd HH:mm" : "yyyy-MM-dd HH:mm:ss";
+                return LocalDateTime.parse(text, DateTimeFormatter.ofPattern(pattern));
+            }
+            return LocalDateTime.parse(text);
+        } catch (Exception e) {
+            String cleaned = text.replace("T", " ").replace("Z", "");
+            if (cleaned.length() > 19) cleaned = cleaned.substring(0, 19);
+            if (cleaned.length() == 10) cleaned = cleaned + " 00:00:00";
+            return LocalDateTime.parse(cleaned, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        }
     }
 
     @Override

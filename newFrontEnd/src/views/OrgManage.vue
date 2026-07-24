@@ -32,33 +32,69 @@
       </div>
     </div>
 
-    <div class="dept-cards" v-if="currentView === 'departments'">
-      <div 
-        class="dept-card" 
-        v-for="dept in depts" 
-        :key="dept.id"
-        @click="goToEmployees(dept)"
-      >
-        <div class="dept-card-bg"></div>
-        <div class="dept-card-content">
-          <div class="dept-icon">
-            <el-icon><OfficeBuilding /></el-icon>
-          </div>
-          <div class="dept-info">
-            <h3 class="dept-name">{{ dept.name }}</h3>
-            <p class="dept-code">部门编码：{{ dept.code }}</p>
-            <p class="dept-employee-count">员工数量：{{ getDeptEmployeeCount(dept.id) }} 人</p>
-            <div class="dept-meta">
-              <span class="dept-status" :class="dept.status === 1 ? 'active' : 'inactive'">
-                {{ dept.status === 1 ? '启用' : '停用' }}
-              </span>
-              <span class="dept-leader" v-if="getLeaderName(dept.leaderId)">
-                负责人：{{ getLeaderName(dept.leaderId) }}
-              </span>
+    <div class="org-tree-container" v-if="currentView === 'departments'">
+      <div class="tree-header">
+        <h3>🏢 组织架构图</h3>
+        <p>点击部门查看成员详情</p>
+      </div>
+      
+      <div class="tree-layout">
+        <div class="super-admin-node">
+          <div class="super-admin-box">
+            <div class="super-admin-icon">
+              <el-icon><Star /></el-icon>
+            </div>
+            <div class="super-admin-info">
+              <div class="super-admin-title">总管理员</div>
+              <div class="super-admin-name">superadmin</div>
             </div>
           </div>
-          <div class="dept-arrow">
-            <el-icon><ArrowRight /></el-icon>
+        </div>
+
+        <div class="tree-connections">
+          <svg class="connection-lines" viewBox="0 0 1200 300" preserveAspectRatio="none">
+            <line 
+              v-for="(dept, index) in depts" 
+              :key="'line-' + dept.id"
+              :x1="600" 
+              :y1="60" 
+              :x2="100 + (index % 3) * 380" 
+              :y2="200" 
+              stroke="#cbd5e1" 
+              stroke-width="2"
+              stroke-dasharray="5,5"
+              class="connection-line"
+            />
+          </svg>
+        </div>
+
+        <div class="departments-row">
+          <div 
+            class="dept-tree-node" 
+            v-for="(dept, index) in depts" 
+            :key="dept.id"
+            :style="{ animationDelay: index * 0.1 + 's' }"
+          >
+            <div class="dept-tree-box">
+              <div class="dept-tree-icon">
+                <el-icon><OfficeBuilding /></el-icon>
+              </div>
+              <div class="dept-tree-info">
+                <div class="dept-tree-name">{{ dept.name }}</div>
+                <div class="dept-tree-count">{{ getDeptEmployeeCount(dept.id) }} 人</div>
+              </div>
+              <div class="dept-tree-status" :class="dept.status === 1 ? 'active' : 'inactive'">
+                {{ dept.status === 1 ? '启用' : '停用' }}
+              </div>
+              <div class="dept-tree-actions">
+                <button class="dept-action-btn edit-btn" @click.stop="goToEmployees(dept)">
+                  <el-icon><Edit /></el-icon>
+                </button>
+                <button class="dept-action-btn delete-btn" @click.stop="deleteDept(dept)">
+                  <el-icon><Delete /></el-icon>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -73,28 +109,54 @@
               <el-icon><Upload /></el-icon>
               批量导入员工
             </el-button>
-            <el-button type="primary" size="small" @click="showAddEmpDialog = true">
+            <el-button type="primary" size="small" @click="handleAddEmployee">
               <el-icon><Plus /></el-icon>
               添加员工
             </el-button>
           </div>
         </div>
         <div class="table-wrapper">
-          <el-table :data="filteredEmployees" stripe :height="Math.max(300, Math.min(600, filteredEmployees.length * 60 + 80))">
+          <el-table :data="paginatedEmployees" stripe style="width: 100%">
             <el-table-column prop="employeeNo" label="工号" width="140" />
             <el-table-column prop="name" label="姓名" width="120" />
             <el-table-column prop="departmentName" label="所属部门" width="180" />
             <el-table-column prop="position" label="职务" width="160" />
-            <el-table-column v-if="isAdmin" prop="phone" label="手机号" width="150" />
+            <el-table-column label="身份证号" width="180" v-if="isAdmin || isDeptAdmin">
+              <template #default="scope">
+                {{ scope.row.idNumber || scope.row.idCard || '-' }}
+              </template>
+            </el-table-column>
+            <el-table-column label="邮箱" width="200" v-if="isAdmin || isDeptAdmin">
+              <template #default="scope">
+                {{ scope.row.email || '-' }}
+              </template>
+            </el-table-column>
             <el-table-column prop="hireDate" label="入职日期" width="150" />
-            <el-table-column prop="status" label="状态" width="120">
+            <el-table-column label="入职年限" width="120">
+              <template #default="scope">
+                {{ calculateTenure(scope.row.hireDate) }}
+              </template>
+            </el-table-column>
+            <el-table-column label="账号角色" width="140">
+              <template #default="scope">
+                <el-tag v-if="scope.row.role === 'SUPER_ADMIN' || scope.row.role === 'ADMIN'" type="danger" effect="dark" size="small">
+                  <el-icon><Star /></el-icon> 超级管理员
+                </el-tag>
+                <el-tag v-else-if="scope.row.role === 'DEPT_MANAGER' || scope.row.role === 'DEPARTMENT_ADMIN'" type="warning" effect="light" size="small">
+                  <el-icon><UserFilled /></el-icon> 部门管理员
+                </el-tag>
+                <el-tag v-else-if="scope.row.hasAccount" type="info" size="small">普通员工</el-tag>
+                <span v-else style="color: #94a3b8; font-size: 12px;">未开通账号</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="status" label="状态" width="100">
               <template #default="scope">
                 <el-tag :type="scope.row.status === 1 ? 'success' : 'info'" size="small">
                   {{ scope.row.status === 1 ? '在职' : '离职' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column v-if="isAdmin || isDeptAdmin" label="操作" width="280">
+            <el-table-column v-if="isAdmin || isDeptAdmin" label="操作" width="340">
               <template #default="scope">
                 <el-button v-if="canEditEmployee(scope.row)" size="small" type="primary" @click="action('edit', scope.row)">
                   <el-icon><Edit /></el-icon>
@@ -104,13 +166,40 @@
                   <el-icon><Delete /></el-icon>
                   删除
                 </el-button>
-                <el-button v-if="isAdmin" size="small" type="warning" @click="setDeptAdmin(scope.row)">
-                  <el-icon><User /></el-icon>
-                  设置部门管理员
-                </el-button>
+                <template v-if="isAdmin && (scope.row.role !== 'SUPER_ADMIN' && scope.row.role !== 'ADMIN')">
+                  <el-button 
+                    v-if="scope.row.role === 'DEPT_MANAGER' || scope.row.role === 'DEPARTMENT_ADMIN'" 
+                    size="small" 
+                    type="warning" 
+                    plain 
+                    @click="cancelDeptAdmin(scope.row)"
+                  >
+                    <el-icon><Remove /></el-icon>
+                    取消部门管理员
+                  </el-button>
+                  <el-button 
+                    v-else 
+                    size="small" 
+                    type="warning" 
+                    @click="setDeptAdmin(scope.row)"
+                  >
+                    <el-icon><User /></el-icon>
+                    设置部门管理员
+                  </el-button>
+                </template>
               </template>
             </el-table-column>
           </el-table>
+        </div>
+        <div class="pagination-container" v-if="filteredEmployees.length > 0">
+          <el-pagination
+            v-model:current-page="empCurrentPage"
+            v-model:page-size="empPageSize"
+            :page-sizes="[5, 10]"
+            :total="filteredEmployees.length"
+            layout="total, sizes, prev, pager, next, jumper"
+            style="float: right; margin-top: 16px;"
+          />
         </div>
         <div v-if="filteredEmployees.length === 0" class="empty-state">
           <el-icon class="empty-icon"><User /></el-icon>
@@ -121,19 +210,13 @@
 
     <el-dialog title="添加部门" v-model="showAddDeptDialog" width="500px" append-to-body align-center>
       <el-form :model="newDept" label-width="100px">
-        <el-form-item label="部门名称">
+        <el-form-item required>
+          <template #label>部门名称 <span style="color:red">*</span></template>
           <el-input v-model="newDept.name" placeholder="请输入部门名称" />
         </el-form-item>
-        <el-form-item label="部门编码">
+        <el-form-item required>
+          <template #label>部门编码 <span style="color:red">*</span></template>
           <el-input v-model="newDept.code" placeholder="请输入部门编码" />
-        </el-form-item>
-        <el-form-item label="部门负责人">
-          <el-select v-model="newDept.leaderId" placeholder="请选择负责人">
-            <el-option v-for="emp in employees" :key="emp.id" :label="emp.name" :value="emp.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="权重排序">
-          <el-input-number v-model="newDept.sort" :min="0" :max="100" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -142,32 +225,79 @@
       </template>
     </el-dialog>
 
-    <el-dialog :title="editingEmployee ? '编辑员工' : '添加员工'" v-model="showAddEmpDialog" width="500px" append-to-body align-center>
-      <el-form :model="newEmployee" label-width="100px">
-        <el-form-item label="员工姓名">
-          <el-input v-model="newEmployee.name" placeholder="请输入姓名" />
-        </el-form-item>
-        <el-form-item label="职务">
-          <el-input v-model="newEmployee.position" placeholder="请输入职务" />
-        </el-form-item>
-        <el-form-item label="手机号">
-          <el-input v-model="newEmployee.phone" placeholder="请输入手机号" />
-        </el-form-item>
-        <el-form-item label="入职日期">
-          <el-date-picker v-model="newEmployee.hireDate" type="date" placeholder="选择入职日期" />
-        </el-form-item>
-        <el-form-item label="状态" v-if="editingEmployee">
-          <el-select v-model="newEmployee.status" placeholder="请选择状态">
-            <el-option label="在职" :value="1" />
-            <el-option label="离职" :value="0" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="handleCloseEmpDialog">取消</el-button>
-        <el-button type="primary" @click="addEmployee">确认{{ editingEmployee ? '编辑' : '添加' }}</el-button>
-      </template>
-    </el-dialog>
+    <div class="custom-modal-overlay" v-if="showAddEmpDialog" @click="handleCloseEmpDialog">
+      <div class="custom-modal" @click.stop>
+        <button class="modal-close" @click="handleCloseEmpDialog">
+          <el-icon><CircleClose /></el-icon>
+        </button>
+        <div class="modal-header">
+          <div class="modal-title">
+            <div class="title-icon">
+              <el-icon><User /></el-icon>
+            </div>
+            <div>
+              <h3>{{ editingEmployee ? '编辑员工信息' : '添加新员工' }}</h3>
+              <p>{{ editingEmployee ? '修改员工个人资料' : '录入新员工基本信息' }}</p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-item">
+              <label class="form-label">员工工号 <span class="required">*</span></label>
+              <el-input v-model="newEmployee.employeeNo" placeholder="请输入员工工号" size="large" :disabled="!!editingEmployee" />
+            </div>
+            <div class="form-item">
+              <label class="form-label">员工姓名 <span class="required">*</span></label>
+              <el-input v-model="newEmployee.name" placeholder="请输入员工姓名" size="large" />
+            </div>
+            <div class="form-item">
+              <label class="form-label">职务 <span class="required">*</span></label>
+              <el-input v-model="newEmployee.position" placeholder="请输入职务" size="large" />
+            </div>
+            <div class="form-item">
+              <label class="form-label">手机号 <span class="required">*</span></label>
+              <el-input v-model="newEmployee.phone" placeholder="请输入手机号" size="large" />
+            </div>
+            <div class="form-item">
+              <label class="form-label">身份证号 <span class="required">*</span></label>
+              <el-input v-model="newEmployee.idNumber" placeholder="请输入身份证号" size="large" />
+            </div>
+            <div class="form-item">
+              <label class="form-label">邮箱 <span class="required">*</span></label>
+              <el-input v-model="newEmployee.email" placeholder="请输入邮箱" size="large" />
+            </div>
+            <div class="form-item">
+              <label class="form-label">入职日期 <span class="required">*</span></label>
+              <el-date-picker v-model="newEmployee.hireDate" type="date" value-format="YYYY-MM-DD" placeholder="选择入职日期" size="large" style="width: 100%" />
+            </div>
+            <div class="form-item">
+              <label class="form-label">入职年限</label>
+              <el-input :value="calculateTenure(newEmployee.hireDate)" placeholder="自动计算" size="large" disabled />
+            </div>
+            <div class="form-item" v-if="isAdmin">
+              <label class="form-label">所属部门 <span class="required">*</span></label>
+              <el-select v-model="newEmployee.departmentId" placeholder="请选择部门" size="large" style="width: 100%">
+                <el-option v-for="dept in depts" :key="dept.id" :label="dept.name" :value="dept.id" />
+              </el-select>
+            </div>
+            <div class="form-item" v-if="editingEmployee">
+              <label class="form-label">状态 <span class="required">*</span></label>
+              <el-select v-model="newEmployee.status" placeholder="请选择状态" size="large" style="width: 100%">
+                <el-option label="在职" :value="1" />
+                <el-option label="离职" :value="0" />
+              </el-select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-cancel" @click="handleCloseEmpDialog">取消</button>
+          <button class="btn-primary" @click="addEmployee">
+            {{ editingEmployee ? '保存修改' : '确认添加' }}
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- ===== 批量导入员工 弹窗 ===== -->
     <el-dialog title="批量导入员工" v-model="showImportDialog" width="600px" append-to-body align-center :close-on-click-modal="false">
@@ -175,7 +305,7 @@
         <div class="template-section" style="margin-bottom: 20px; padding: 14px 18px; background: rgba(102, 126, 234, 0.05); border-radius: 12px; border: 1px dashed rgba(102, 126, 234, 0.3);">
           <p style="margin-bottom: 6px; font-weight: 600; color: #1a1a2e;">第 1 步：下载标准导入模版</p>
           <p style="font-size: 13px; color: #64748b; margin-bottom: 10px;">
-            模版包含【姓名、部门、职位、电话号码】列属性。工号无需填写，系统自动分配（Smart开头）。
+            模版包含【工号、姓名、部门、职位、电话号码、身份证号、邮箱】列属性。工号可自定义填写，若留空系统将自动生成。
           </p>
           <el-button type="primary" link @click="downloadTemplate">
             <el-icon><Download /></el-icon> 点击下载标准导入模板 (.csv)
@@ -241,10 +371,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Plus, Edit, Delete, ArrowLeft, ArrowRight, OfficeBuilding, User, Upload, Download } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete, ArrowLeft, ArrowRight, OfficeBuilding, User, Upload, Download, Star, CircleClose, UserFilled, Remove } from '@element-plus/icons-vue'
 import {
   getDepartmentPage,
   createDepartment,
+  deleteDepartment,
   getEmployeePage,
   createEmployee,
   updateEmployee,
@@ -267,12 +398,15 @@ const importFile = ref(null)
 const importResult = ref(null)
 const editingEmployee = ref(null)
 
+const empCurrentPage = ref(1)
+const empPageSize = ref(5)
+
 const handleFileChange = (file) => {
   importFile.value = file.raw
 }
 
 const downloadTemplate = () => {
-  const csvContent = "\uFEFF姓名,部门,职位,电话号码\n张三,研发中心,Java开发工程师,13800000001\n李四,财务部,会计,13900000002\n"
+  const csvContent = "\uFEFF工号,姓名,部门,职位,电话号码,身份证号,邮箱\nEMP0001,张三,研发中心,Java开发工程师,13800000001,110101199001011234,zhangsan@company.com\nEMP0002,李四,财务部,会计,13900000002,110101199202022345,lisi@company.com\n"
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
@@ -303,9 +437,7 @@ const handleImportSubmit = async () => {
 
 const newDept = ref({
   name: '',
-  code: '',
-  leaderId: null,
-  sort: 0
+  code: ''
 })
 
 const newEmployee = ref({
@@ -313,12 +445,11 @@ const newEmployee = ref({
   name: '',
   position: '',
   phone: '',
-  idNumber: '',
-  email: '',
   hireDate: '',
-  workYears: null,
   departmentId: null,
-  status: 1
+  status: 1,
+  idCard: '',
+  email: ''
 })
 
 const role = ref(localStorage.getItem('role') || 'EMPLOYEE')
@@ -352,12 +483,30 @@ const getLeaderName = (leaderId) => {
   return leader ? leader.name : ''
 }
 
+const calculateTenure = (hireDate) => {
+  if (!hireDate) return ''
+  const hire = new Date(hireDate)
+  const now = new Date()
+  let years = now.getFullYear() - hire.getFullYear()
+  const months = now.getMonth() - hire.getMonth()
+  if (months < 0 || (months === 0 && now.getDate() < hire.getDate())) {
+    years--
+  }
+  return years >= 0 ? years + ' 年' : ''
+}
+
 const filteredEmployees = computed(() => {
   if (isAdmin.value) {
     if (!selectedDept.value) return []
     return employees.value.filter(e => e.departmentId === selectedDept.value.id)
   }
   return employees.value
+})
+
+const paginatedEmployees = computed(() => {
+  const start = (empCurrentPage.value - 1) * empPageSize.value
+  const end = start + empPageSize.value
+  return filteredEmployees.value.slice(start, end)
 })
 
 const loadOrgData = async () => {
@@ -407,23 +556,32 @@ const addDepartment = async () => {
   }
 }
 
+const deleteDept = async (dept) => {
+  try {
+    await deleteDepartment(dept.id)
+    ElMessage.success('部门删除成功')
+    loadOrgData()
+  } catch (err) {
+    ElMessage.error(err.response?.data?.message || '删除部门失败')
+  }
+}
+
 const action = async (type, data) => {
   try {
     if (type === 'delete') {
       ElMessage.info('出于审计安全考虑，员工档案暂不支持直接删除')
     } else if (type === 'edit') {
       editingEmployee.value = { ...data }
-      newEmployee.value = {
-        employeeNo: data.employeeNo || "",
-        name: data.name,
-        position: data.position,
-        phone: data.phone,
-        idNumber: data.idNumber || "",
-        email: data.email || "",
-        hireDate: data.hireDate || "",
-        workYears: data.workYears,
+      newEmployee.value = { 
+        employeeNo: data.employeeNo || '',
+        name: data.name, 
+        position: data.position, 
+        phone: data.phone, 
+        hireDate: data.hireDate || '', 
         departmentId: data.departmentId,
-        status: data.status !== undefined ? data.status : 1
+        status: data.status !== undefined ? data.status : 1,
+        idNumber: data.idNumber || data.idCard || '',
+        email: data.email || ''
       }
       showAddEmpDialog.value = true
     }
@@ -434,26 +592,73 @@ const action = async (type, data) => {
 
 const setDeptAdmin = async (employee) => {
   try {
-    await createAccount(employee.id, { role: 'DEPT_MANAGER' })
-    ElMessage.success(`${employee.name} 已成功设置为部门经理！`)
+    const res = await createAccount(employee.id, { role: 'DEPT_MANAGER' })
+    if (res && res.data === 'SUCCESS_ROLE_UPDATED') {
+      ElMessage.success(`已将员工【${employee.name}】的系统账号权限升为部门经理！`)
+    } else {
+      ElMessage.success(`${employee.name} 已成功设置为部门经理！初始密码：123456`)
+    }
     loadOrgData()
   } catch (err) {
     ElMessage.error(err.response?.data?.message || '设置权限失败')
   }
 }
 
+const cancelDeptAdmin = async (employee) => {
+  try {
+    await createAccount(employee.id, { role: 'EMPLOYEE' })
+    ElMessage.success(`已取消员工【${employee.name}】的部门管理员权限！`)
+    loadOrgData()
+  } catch (err) {
+    ElMessage.error(err.response?.data?.message || '取消权限失败')
+  }
+}
+
+const handleAddEmployee = () => {
+  editingEmployee.value = null
+  const autoEmpNo = 'EMP' + String(Date.now()).substring(7)
+  newEmployee.value = { employeeNo: autoEmpNo, name: '', position: '', phone: '', hireDate: '', departmentId: null, status: 1, idNumber: '', email: '' }
+  showAddEmpDialog.value = true
+}
+
 const handleCloseEmpDialog = () => {
   showAddEmpDialog.value = false
-  newEmployee.value = { employeeNo: "", name: "", position: "", phone: "", idNumber: "", email: "", hireDate: "", workYears: null, departmentId: null, status: 1 }
+  newEmployee.value = { employeeNo: '', name: '', position: '', phone: '', hireDate: '', departmentId: null, status: 1, idNumber: '', email: '' }
   editingEmployee.value = null
 }
 
 const addEmployee = async () => {
-  if (!newEmployee.value.name || !newEmployee.value.position) {
-    ElMessage.warning('请填写姓名和职务')
+  if (!newEmployee.value.employeeNo) {
+    ElMessage.warning('请填写员工工号')
     return
   }
-  newEmployee.value.departmentId = selectedDept.value.id
+  if (!newEmployee.value.name) {
+    ElMessage.warning('请填写员工姓名')
+    return
+  }
+  if (!newEmployee.value.position) {
+    ElMessage.warning('请填写职务')
+    return
+  }
+  if (!newEmployee.value.phone) {
+    ElMessage.warning('请填写手机号')
+    return
+  }
+  if (!newEmployee.value.idNumber) {
+    ElMessage.warning('请填写身份证号')
+    return
+  }
+  if (!newEmployee.value.email) {
+    ElMessage.warning('请填写邮箱')
+    return
+  }
+  if (!newEmployee.value.hireDate) {
+    ElMessage.warning('请选择入职日期')
+    return
+  }
+  if (!isAdmin.value || !editingEmployee.value) {
+    newEmployee.value.departmentId = selectedDept.value.id
+  }
   try {
     if (editingEmployee.value) {
       await updateEmployee(editingEmployee.value.id, newEmployee.value)
@@ -490,6 +695,7 @@ onMounted(async () => {
 <style scoped>
 .org-container {
   max-width: 1400px;
+  width: 100%;
 }
 
 .page-header {
@@ -517,128 +723,251 @@ onMounted(async () => {
   font-weight: 500;
 }
 
-.dept-cards {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+.org-tree-container {
+  width: 100%;
 }
 
-.dept-card {
-  position: relative;
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-radius: 24px;
-  padding: 32px 40px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
+.tree-header {
+  text-align: center;
+  margin-bottom: 40px;
 }
 
-.dept-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1);
-  border-color: rgba(102, 126, 234, 0.3);
-}
-
-.dept-card-bg {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.03) 0%, rgba(118, 75, 162, 0.02) 100%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.dept-card:hover .dept-card-bg {
-  opacity: 1;
-}
-
-.dept-card-content {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
-
-.dept-icon {
-  width: 72px;
-  height: 72px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 32px;
-  color: white;
-  flex-shrink: 0;
-}
-
-.dept-info {
-  flex: 1;
-}
-
-.dept-name {
-  font-size: 24px;
-  font-weight: 700;
+.tree-header h3 {
+  font-size: 28px;
+  font-weight: 800;
   color: #1a1a2e;
   margin: 0 0 8px 0;
 }
 
-.dept-code,
-.dept-employee-count {
+.tree-header p {
   font-size: 14px;
   color: #64748b;
   margin: 0;
 }
 
-.dept-employee-count {
-  margin-top: 4px;
+.tree-layout {
+  position: relative;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-.dept-meta {
+.super-admin-node {
+  margin-bottom: 80px;
+  animation: fadeInDown 0.6s ease-out;
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.super-admin-box {
   display: flex;
   align-items: center;
   gap: 16px;
-  margin-top: 12px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 24px 40px;
+  border-radius: 20px;
+  box-shadow: 0 10px 40px rgba(102, 126, 234, 0.4);
+  transition: all 0.3s ease;
 }
 
-.dept-status {
-  padding: 4px 12px;
+.super-admin-box:hover {
+  transform: scale(1.02);
+  box-shadow: 0 15px 50px rgba(102, 126, 234, 0.5);
+}
+
+.super-admin-icon {
+  width: 56px;
+  height: 56px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: #fff;
+}
+
+.super-admin-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.super-admin-title {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+}
+
+.super-admin-name {
+  font-size: 20px;
+  color: #fff;
+  font-weight: 700;
+}
+
+.tree-connections {
+  position: absolute;
+  top: 80px;
+  left: 0;
+  right: 0;
+  height: 200px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.connection-lines {
+  width: 100%;
+  height: 200px;
+}
+
+.connection-line {
+  animation: drawLine 0.8s ease-out forwards;
+  stroke-dashoffset: 1000;
+}
+
+@keyframes drawLine {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.departments-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 32px;
+  z-index: 1;
+}
+
+.dept-tree-node {
+  animation: fadeInUp 0.6s ease-out forwards;
+  opacity: 0;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dept-tree-box {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  border-radius: 16px;
+  padding: 24px 32px;
+  border: 2px solid rgba(102, 126, 234, 0.15);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 220px;
+  text-align: center;
+}
+
+.dept-tree-box:hover {
+  transform: translateY(-8px);
+  border-color: rgba(102, 126, 234, 0.4);
+  box-shadow: 0 12px 40px rgba(102, 126, 234, 0.2);
+}
+
+.dept-tree-icon {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: white;
+  margin: 0 auto 16px;
+}
+
+.dept-tree-info {
+  margin-bottom: 12px;
+}
+
+.dept-tree-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a2e;
+  margin: 0 0 6px 0;
+}
+
+.dept-tree-count {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+}
+
+.dept-tree-status {
+  display: inline-block;
+  padding: 4px 14px;
   border-radius: 20px;
   font-size: 12px;
   font-weight: 500;
 }
 
-.dept-status.active {
+.dept-tree-status.active {
   background: rgba(34, 197, 94, 0.1);
   color: #22c55e;
 }
 
-.dept-status.inactive {
+.dept-tree-status.inactive {
   background: rgba(148, 163, 184, 0.1);
   color: #94a3b8;
 }
 
-.dept-leader {
-  font-size: 14px;
-  color: #64748b;
+.dept-tree-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 16px;
 }
 
-.dept-arrow {
-  font-size: 20px;
-  color: #94a3b8;
+.dept-action-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
   transition: all 0.3s ease;
 }
 
-.dept-card:hover .dept-arrow {
+.dept-action-btn.edit-btn {
+  background: rgba(102, 126, 234, 0.1);
   color: #667eea;
-  transform: translateX(8px);
+}
+
+.dept-action-btn.edit-btn:hover {
+  background: rgba(102, 126, 234, 0.2);
+  transform: scale(1.1);
+}
+
+.dept-action-btn.delete-btn {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.dept-action-btn.delete-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  transform: scale(1.1);
 }
 
 .employee-section {
@@ -678,6 +1007,7 @@ onMounted(async () => {
 .table-wrapper {
   padding: 16px 28px 28px;
   overflow-x: auto;
+  width: 100%;
 }
 
 .empty-state {
@@ -689,5 +1019,187 @@ onMounted(async () => {
 .empty-icon {
   font-size: 48px;
   margin-bottom: 16px;
+}
+
+.custom-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.custom-modal {
+  width: 620px;
+  background: #ffffff;
+  border-radius: 24px;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  animation: slideUp 0.35s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 28px 32px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.modal-title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.title-icon {
+  width: 48px;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: #ffffff;
+}
+
+.modal-title h3 {
+  font-size: 22px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 4px 0;
+}
+
+.modal-title p {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+  margin: 0;
+}
+
+.modal-close {
+  width: 40px;
+  height: 40px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 10000;
+  position: absolute;
+  top: 16px;
+  right: 16px;
+}
+
+.modal-close:hover {
+  background: #e2e8f0;
+  color: #334155;
+  transform: scale(1.1);
+}
+
+.modal-body {
+  padding: 32px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.form-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.form-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.form-label .required {
+  color: #ef4444;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  padding: 20px 32px 28px;
+  background: #f8fafc;
+  border-top: 1px solid #f1f5f9;
+}
+
+.btn-cancel {
+  padding: 12px 32px;
+  background: #e2e8f0;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-cancel:hover {
+  background: #cbd5e1;
+  transform: translateY(-2px);
+}
+
+.btn-primary {
+  padding: 12px 32px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.35);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.45);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
 }
 </style>

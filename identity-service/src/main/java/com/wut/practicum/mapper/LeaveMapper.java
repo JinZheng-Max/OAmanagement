@@ -28,6 +28,12 @@ public interface LeaveMapper {
     int insertAudit(OaLeaveAudit audit);
     List<OaLeaveAudit> selectAuditsByLeaveId(@Param("leaveId") Long leaveId);
 
+    // ---- 统计大屏 ----
+    List<java.util.Map<String, Object>> selectDeptPendingLeaveCounts();
+    List<java.util.Map<String, Object>> selectDeptPendingReplenishCounts();
+    long countPendingLeaves();
+    long countPendingReplenishes();
+
     // ---- 附件 ----
     int insertAttachment(OaLeaveAttachment attachment);
     List<OaLeaveAttachment> selectAttachmentsByLeaveId(@Param("leaveId") Long leaveId);

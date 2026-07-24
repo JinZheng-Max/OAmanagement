@@ -19,6 +19,9 @@ import reactor.core.publisher.Mono;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class GatewaySecurityFilter implements WebFilter {
@@ -47,9 +50,19 @@ public class GatewaySecurityFilter implements WebFilter {
         if (authorization == null || !authorization.startsWith("Bearer ")) return error(exchange, HttpStatus.UNAUTHORIZED, "未登录或登录已过期");
         try {
             GatewayJwtService.GatewayPrincipal principal = jwtService.parse(authorization.substring(7));
-            return redis.hasKey(SESSION_PREFIX + principal.jti()).onErrorReturn(false)
+            return redis.hasKey(SESSION_PREFIX + principal.jti())
+                    .doOnNext(active -> {
+                        if (!active) {
+                            log.warn("Session check failed: key {} not found in Redis for user={}", SESSION_PREFIX + principal.jti(), principal.username());
+                        }
+                    })
+                    .onErrorResume(ex -> {
+                        log.error("Redis session lookup exception for jti={}, fallback to JWT signature check", principal.jti(), ex);
+                        return Mono.just(true);
+                    })
                     .flatMap(active -> active ? chain.filter(exchange) : error(exchange, HttpStatus.UNAUTHORIZED, "未登录或登录已过期"));
-        } catch (JwtException | IllegalArgumentException exception) {
+        } catch (Exception exception) {
+            log.warn("JWT parse failed for path={}: {}", path, exception.getMessage(), exception);
             return error(exchange, HttpStatus.UNAUTHORIZED, "未登录或登录已过期");
         }
     }

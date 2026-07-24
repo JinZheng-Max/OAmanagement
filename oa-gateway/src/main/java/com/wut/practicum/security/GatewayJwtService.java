@@ -19,7 +19,7 @@ public class GatewayJwtService {
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
     public GatewayPrincipal parse(String token) {
-        Claims claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+        Claims claims = Jwts.parser().clockSkewSeconds(60).verifyWith(key).build().parseSignedClaims(token).getPayload();
         Number userId = claims.get("userId", Number.class);
         Number employeeId = claims.get("employeeId", Number.class);
         return new GatewayPrincipal(userId.longValue(), claims.getSubject(), claims.get("role", String.class),

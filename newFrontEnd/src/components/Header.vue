@@ -64,8 +64,17 @@
         <el-form-item label="入职日期">
           <el-input v-model="profileForm.hireDate" disabled />
         </el-form-item>
-        <el-form-item label="手机号">
+        <el-form-item required>
+          <template #label>手机号 <span style="color:red">*</span></template>
           <el-input v-model="profileForm.phone" placeholder="请输入手机号" />
+        </el-form-item>
+        <el-form-item required>
+          <template #label>身份证号 <span style="color:red">*</span></template>
+          <el-input v-model="profileForm.idCard" placeholder="请输入身份证号" />
+        </el-form-item>
+        <el-form-item required>
+          <template #label>邮箱 <span style="color:red">*</span></template>
+          <el-input v-model="profileForm.email" placeholder="请输入邮箱" />
         </el-form-item>
         <el-divider>修改密码</el-divider>
         <el-form-item label="旧密码">
@@ -107,6 +116,8 @@ const profileForm = ref({
   position: '',
   hireDate: '',
   phone: '',
+  idCard: '',
+  email: '',
   oldPassword: '',
   newPassword: '',
   confirmPassword: ''
@@ -152,6 +163,8 @@ const loadProfile = async () => {
         profileForm.value.position = user.employee.position || ''
         profileForm.value.hireDate = user.employee.hireDate || ''
         profileForm.value.phone = user.employee.phone || ''
+        profileForm.value.idCard = user.employee.idCard || ''
+        profileForm.value.email = user.employee.email || ''
       }
     }
   } catch (err) {
@@ -178,6 +191,16 @@ const handleCommand = async (command) => {
 }
 
 const saveProfile = async () => {
+  if (!profileForm.value.phone) {
+    return ElMessage.warning('请输入手机号')
+  }
+  if (!profileForm.value.idCard) {
+    return ElMessage.warning('请输入身份证号')
+  }
+  if (!profileForm.value.email) {
+    return ElMessage.warning('请输入邮箱')
+  }
+
   if (profileForm.value.newPassword) {
     if (!profileForm.value.oldPassword) {
       return ElMessage.warning('请输入旧密码')
@@ -195,12 +218,12 @@ const saveProfile = async () => {
 
   saveLoading.value = true
   try {
-    if (profileForm.value.name || profileForm.value.phone) {
-      await updateProfile({
-        name: profileForm.value.name,
-        phone: profileForm.value.phone
-      })
-    }
+    await updateProfile({
+      name: profileForm.value.name,
+      phone: profileForm.value.phone,
+      idCard: profileForm.value.idCard,
+      email: profileForm.value.email
+    })
     
     if (profileForm.value.newPassword) {
       await changePassword(profileForm.value.oldPassword, profileForm.value.newPassword)

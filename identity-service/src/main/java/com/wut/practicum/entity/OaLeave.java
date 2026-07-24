@@ -21,6 +21,9 @@ public class OaLeave {
     @Schema(description = "申请人工号（JOIN查询）")
     private String applicantNo;
 
+    @Schema(description = "申请人所属部门ID（JOIN查询）")
+    private Long departmentId;
+
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

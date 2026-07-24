@@ -1,8 +1,8 @@
 -- ===================================================================
 -- 智办AI OA 数据库增量升级与结构修复脚本 (全版本全功能安全幂等)
 -- 适用数据库: oa_db
--- 编制日期: 2026-07-23
--- 特点: 采用安全存储过程检测，多次重复运行绝不报错，支持在已有数据的数据库上直接升级
+-- 编制日期: 2026-07-24
+-- 【重要提示】：若在 Navicat / DBeaver 中运行本文件，请务必【全选(Ctrl+A)后运行】，切勿仅单独高亮选中某一行 IF 语句。
 -- ===================================================================
 
 USE oa_db;
@@ -25,6 +25,30 @@ BEGIN
         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sys_user' AND INDEX_NAME = 'idx_role_status'
     ) THEN
         ALTER TABLE `sys_user` ADD INDEX `idx_role_status` (`role`, `status`);
+    END IF;
+
+    -- -------------------------------------------------------------------
+    -- 1.5 补齐 oa_employee 扩展字段 (身份证号、电子邮箱、工作年限)
+    -- -------------------------------------------------------------------
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'oa_employee' AND COLUMN_NAME = 'id_number'
+    ) THEN
+        ALTER TABLE `oa_employee` ADD COLUMN `id_number` VARCHAR(18) NULL COMMENT '身份证号（18位）' AFTER `phone`;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'oa_employee' AND COLUMN_NAME = 'email'
+    ) THEN
+        ALTER TABLE `oa_employee` ADD COLUMN `email` VARCHAR(100) NULL COMMENT '电子邮箱' AFTER `id_number`;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'oa_employee' AND COLUMN_NAME = 'work_years'
+    ) THEN
+        ALTER TABLE `oa_employee` ADD COLUMN `work_years` DECIMAL(4,1) NULL DEFAULT 0 COMMENT '工作年限（年）' AFTER `hire_date`;
     END IF;
 
     -- -------------------------------------------------------------------

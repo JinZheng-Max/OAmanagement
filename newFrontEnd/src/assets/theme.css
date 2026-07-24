@@ -338,19 +338,20 @@ b {
 }
 
 .el-dialog__header {
-    background: var(--primary-gradient);
+    background: #ffffff;
     padding: 20px 24px;
+    border-bottom: 1px solid #f1f5f9;
 }
 
 .el-dialog__title {
-    color: white;
+    color: #1e293b;
     font-weight: var(--font-weight-bold);
     font-size: var(--font-size-xl);
     letter-spacing: var(--letter-spacing-tight);
 }
 
 .el-dialog__headerbtn .el-dialog__close {
-    color: white;
+    color: #64748b;
 }
 
 .el-dialog__body {

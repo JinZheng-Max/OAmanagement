@@ -18,5 +18,6 @@ public interface DepartmentMapper {
     int insert(SysDepartment dept);
     int update(SysDepartment dept);
     int updateStatus(@Param("id") Long id, @Param("status") Integer status);
+    int deleteById(@Param("id") Long id);
     List<SysDepartment> selectAllActive();
 }
